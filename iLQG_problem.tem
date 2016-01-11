@@ -1,0 +1,51 @@
+<<gentran(literal("\/\* File generated form template iLQG_problem.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#ifndef ILQG_PROBLEM_H
+#define ILQG_PROBLEM_H
+
+#include <math.h>
+// #include "matrix.h"
+#include "mex.h"
+
+#define N_X <<gentran(eval(nx))$>> 
+#define N_U <<gentran(eval(nu))$>> 
+
+typedef struct {
+    double Vx[<<gentran(eval(nx))>>];
+    double Vxx[<<gentran(eval((nx*(nx+1))/2))>>];
+    double Vxx_reg[<<gentran(eval((nx*(nx+1))/2))>>];
+    double Qx[<<gentran(eval(nx))>>];
+    double Qu[<<gentran(eval(nu))>>];
+    double Qxu[<<gentran(eval(nx*nu))>>];
+    double Qxu_reg[<<gentran(eval(nx*nu))>>];
+    double Qxx[<<gentran(eval((nx*(nx+1))/2))>>];
+    double Quu[<<gentran(eval((nu*(nu+1))/2))>>];
+    double QuuF[<<gentran(eval((nu*(nu+1))/2))>>];
+    double fx[<<gentran(eval(nx*nx))>>];
+    double fu[<<gentran(eval(nx*nu))>>];
+    double dummy[<<gentran(eval(max(nx, nu)^2))>>];
+    <<if not(all_zero(fxx)) then gentran(literal("double fxx[", eval(nx*(nx*(nx+1))/2), "]\;", cr))>>
+    <<if not(all_zero(fuu)) then gentran(literal("double fuu[", eval(nx*(nu*(nu+1))/2), "]\;", cr))>>
+    <<if not(all_zero(fxu)) then gentran(literal("double fxu[", eval(nx*nx*nu), "]\;", cr))>>
+} back_pass_t;
+
+typedef struct {
+<<block([a], for a in aux_def do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+<<block([a], for a in aux_deriv do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+} aux_t;
+
+extern int n_params;
+extern int n_vars;
+extern tParamDesc *paramdesc[];
+
+// double ddpJ(double x[], double u[], int k, double *p[], double N);
+// int ddpf(double x_next[], double x[], double u[], int k, double *p[], double N);
+// void clampU(double x[], double u[], int k, double *p[], double N);
+double ddpJ(double x[], double u[], int k, aux_t *aux, double *p[], double N);
+int ddpf(double x_next[], double x[], double u[], int k, aux_t *aux, double *p[], double N);
+void clampU(double x[], double u[], int k, aux_t *aux, double *p[], double N);
+int calcXVariableAux(double x[], int k, aux_t *aux, double *p[]);
+int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]);
+int calcStaticAux(aux_t *aux, double *p[]);
+
+#endif // ILQG_PROBLEM_H

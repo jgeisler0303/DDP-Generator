@@ -1,0 +1,48 @@
+<<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#include "iLQG.h"
+#include "iLQG_problem.h"
+
+int n_params= <<gentran(eval(length(params)))$>>;
+    
+<<
+block([i], for i:1 thru length(params) do gentran(literal("tParamDesc p_name", eval(i), "= {\"", eval(params[i][1]), "\", ", eval(if params[i][2]='k then -1 else params[i][2]), ", 0}\; // -> ", eval(if params[i][2]=1 then do_replacements(params[i][1]) else do_replacements(arraymake(params[i][1], [0]))),cr)))$
+>>
+int n_vars= 0;
+    
+tParamDesc *paramdesc[]= {<<block([i], for i:1 thru length(params) do (gentran(literal(&, "p_name", eval(i))), if i#length(params) then gentran(literal(", "))))$>>};
+
+double ddpJ(double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+    double t0;
+    if(k<N) {
+        <<do_assign(t0, L, 3*4)>>
+    } else {
+        <<do_assign(t0, F, 3*4)>>
+    }
+    return t0;
+}
+
+int ddpf(double x_next[], double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+<<block([i], for i:1 thru nx do do_assign(x_next[i-1], f[x[i]], 4, 0))>>
+    return 1;
+}
+
+void clampU(double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+    double limit;
+
+<<block([i], for i in flatten(rest(arrayinfo(h), 2)) do do_clamp(i))>>
+}
+
+int calcStaticAux(aux_t *aux, double *p[]) {
+<<print_aux(0);>>
+    return 1;
+}
+
+int calcXVariableAux(double x[], int k, aux_t *aux, double *p[]) {
+<<print_aux(1);>>
+    return 1;
+} 
+
+int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]) {
+<<print_aux(2);>>
+    return 1;
+} 

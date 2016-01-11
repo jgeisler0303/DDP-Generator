@@ -1,0 +1,446 @@
+/* load(gentran)$ */
+if not(member('x, values)) then
+  error("vector of states x not defined");
+print("using states: ", x);
+if not(listp(x)) then
+  error("x must be a_work list of states");
+if not(member('u, values)) then
+  error("vector of inputs u not defined");
+if not(listp(u)) then
+  error("u must be a_work list of inputs");
+print("using inputs: ", u);
+
+if not(member('f, arrays)) then
+  error("state transition function f not defined");
+
+if not(flatten(rest(arrayinfo(f), 2))=sort(x)) then
+  error("elements of f must be indexed by elements of x");
+  
+if not(member('F, values)) then
+  error("final cost F not defined");
+if listp(F) then 
+  error("final cost F must not be a_work list");
+  
+if not(member('L, values)) then
+  error("running cost L not defined");
+if listp(L) then 
+  error("running cost L must not be a_work list");
+  
+if not(member(h, arrays)) then
+  error("array of input limits not defined");
+  
+gentranlang(c)$
+off('float)$
+off(gentranseg)$
+?ccurrind\*: 4$
+?clinelen\*: 1000$
+
+remove(all, rule);
+
+nx:length(x);
+nu:length(u);
+tri_matrix_mode: false;
+check_nan_inf_mode: true;
+
+time_var_symbols: append(x, u, [k]);
+is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
+
+allvars: setdifference(setify(append(listofvars(listarray(h)), listofvars(listarray(f)),listofvars(F), listofvars(L))), {k});
+allparams: setdifference(setdifference(allvars, setify(x)), setify(u));
+arrayparams: subset(allparams, subvarp);
+
+scalarparams: setdifference(allparams, arrayparams);
+
+aux_vars: subset(scalarparams, lambda([x], member(x, values)))$
+
+get_dependencies(x):= block([l_work],
+  l_work: sublist(dependencies, lambda([x_], is(op(x_)=x))),
+  if length(l_work)=0 then return([]),
+  args(l_work[1])
+/* make sure states come last */
+)$
+
+get_xu_dep(a_work):= block([xu_dep: {}, dep, d_work],
+  deps: get_dependencies(a_work),
+  /*print("dependencies of ", a_work, ": ", deps),*/
+  for d_work in deps do
+    if member(d_work, append(x, u)) then
+      xu_dep: append(xu_dep, {d_work})
+    else
+      xu_dep: append(xu_dep, get_xu_dep(d_work)),
+  
+  xu_dep
+)$
+
+add_dependency(x, d_work):= block(
+  depends(x, cons(d_work, get_dependencies(x)))
+)$
+
+rem_dep(x, d_work):= block(
+  depends(x, delete(d_work, get_dependencies(x)))
+)$
+
+recurse_deps(d_work, parents):= block([new_dep, new_deps, new_p, new_aux: parents, res, r, xu],
+  new_p: setify(listofvars(ev(d_work))),
+  new_deps: subset(new_p, lambda([x], member(x, values))),
+  for new_dep in new_deps do (
+    if member(new_dep, parents) then
+      error("circular definition of dependencies involving ", new_dep, " and ", dep)
+    else
+      if not(member(new_dep, new_aux)) then (
+        if length(parents)#0 then add_dependency(d_work, new_dep),
+
+        res: recurse_deps(new_dep, append(parents, [new_dep])),
+        new_aux: append(new_aux, [new_dep]),
+        for r in res do
+          new_aux: append(delete(r, new_aux), [r])
+      )
+  ),
+  new_params: append(new_params, setdifference(new_p, new_deps)),
+  for xu in append(x, u) do
+    if member(xu, new_params) then (
+      new_params: delete(xu, new_params),
+      if length(parents)#0 then add_dependency(d_work, xu)
+    ),
+  /*print("new aux in ", d_work, ": ", new_aux),*/
+  new_aux
+)$
+
+new_params: {}$
+top_level_aux: aux_vars$
+aux_vars: reverse(recurse_deps('top_level_aux, []))$
+
+/* make implicit state dependencies explicit and remove direct dependencies */
+block([a_work],
+  for a_work in aux_vars do
+    depends(a_work, sort(listify(get_xu_dep(a_work))))
+)$
+
+/* define 1st and 2nd derivatives */ 
+block([a_work, d1_work, d2_work, d_work, d_ab],
+  for a_work in aux_vars do (
+    for d1_work in get_dependencies(a_work) do (
+      d_work: diff(ev(a_work), d1_work),
+      if d_work=0 then
+        apply(gradef, [a_work, d1_work, 0])
+      else
+        apply(gradef, [a_work, d1_work, concat('diff_, a_work, '_, d1_work)]),
+      print([a_work, d1_work, concat('diff_, a_work, '_, d1_work)]),
+      for d2_work in get_dependencies(a_work) do (
+        d_work: diff(d_work, d2_work),
+        if d_work=0 then
+          apply(gradef, [concat('diff_, a_work, '_, d1_work), d2_work, 0])
+        else (
+          d_ab: sort([d1_work, d2_work]),
+          apply(gradef, [concat('diff_, a_work, '_, d1_work), d2_work, concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2])])
+        )
+      )
+    )
+  )
+);
+
+
+aux_def: [];
+aux_deriv: [];
+depends_on_u_aux: u;
+does_depend_on_u(e_work):= not(apply('freeof, endcons(e_work, depends_on_u_aux)));
+
+/* aux and derivatives definitions */
+block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
+  for i_work: 1 thru length(aux_vars) do (
+    a_work: aux_vars[i_work],
+    eva: ev(a_work),
+    aux_def: endcons([a_work, eva], aux_def),
+    /* apply(defrule, [concat('rule, '_, a_work), concat("'", a_work), concat('aux\-\>, a_work)]),*/
+    apply(defrule, [concat('rule, '_, a_work), arraymake('aux_vars, [i_work]), concat('aux\-\>, a_work)]),
+    if is_time_var(eva) then
+      time_var_symbols: cons(a_work, time_var_symbols),
+    if does_depend_on_u(eva) then
+      depends_on_u_aux: cons(a_work, depends_on_u_aux),
+
+    rem_d: get_dependencies(a_work),
+    for d1_work in get_dependencies(a_work) do (
+      d_work: diff(ev(a_work), d1_work),
+      if d_work#0 then (
+        dname_work: concat('diff_, a_work, '_, d1_work),
+        aux_deriv: endcons([dname_work, d_work], aux_deriv),
+        apply(defrule, [concat('rule, '_, dname_work), dname_work, concat('aux\-\>, dname_work)]),
+        if is_time_var(d_work) then
+          time_var_symbols: cons(dname_work, time_var_symbols)
+      ),
+      
+      for d2_work in rem_d do (
+        d_work: diff(ev(a_work), d1_work, 1, d2_work, 1),
+        if d_work#0 then (
+          d_ab: sort([d1_work, d2_work]),
+          dname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
+          aux_deriv: endcons([dname_work, d_work], aux_deriv),
+          apply(defrule, [concat('rule, '_, dname_work), dname_work, concat('aux\-\>, dname_work)]),
+          if is_time_var(d_work) then
+            time_var_symbols: cons(dname_work, time_var_symbols)
+        )
+      ),
+      rem_d: delete(d1_work, rem_d)
+    )  
+  )
+)$
+
+
+print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen],
+  for a_work in aux_def do (
+    skip_gen: false,
+    if length(time_var_test)=1 then (
+      if time_var_test[1]=0 and is_time_var(a_work[2]) then
+        skip_gen: true,
+      if time_var_test[1]=1 and does_depend_on_u(a_work[2]) then
+        skip_gen: true,
+      if time_var_test[1]=2 and not(does_depend_on_u(a_work[2])) then
+        skip_gen: true
+    ),
+    if not(skip_gen) then (
+      if is_time_var(a_work[2]) then (
+        gentran(literal("// aux_def[", eval(i_work), "]", cr)),
+        if atom(float(a_work[2])) then
+          do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4)
+        else
+          do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4, 0)
+      )
+    ),
+    i_work: i_work+1
+  )
+)$
+      
+print_deriv([time_var_test]):= block([a_work, i_work:1],
+  for a_work in aux_deriv do (
+    if length(time_var_test)<1 or time_var_test[1]=is_time_var(a_work[2]) then (
+      gentran(literal("// aux_deriv[", eval(i_work), "]", cr)),
+      if atom(float(a_work[2])) then
+        do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4)
+      else
+        do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4, 0)
+    ),
+    i_work: i_work+1
+  )
+)$
+      
+allparams: append(setdifference(allparams, setify(aux_vars)), new_params);
+arrayparams: subset(allparams, subvarp);
+scalarparams: setdifference(allparams, arrayparams);
+
+if does_depend_on_u(F) then
+  error("F my not depend on u");
+
+scalar_list: block([p_work, l_work: makelist (), i_work: 0], for p_work in scalarparams do (l_work:endcons([p_work, 1, 0, i_work], l_work), i_work: i_work+1), l_work);
+
+array_list: block([p_work, idxes, idx_work, maxidx, l_work: makelist(), aps: {}, i_work:length(scalar_list)],
+  for p_work in arrayparams do
+    aps:adjoin(op(p_work), aps),
+  for p_work in aps do (
+    idxes: map(args, subset(arrayparams, lambda([x], is(op(x)=p_work)))),
+    maxidx: 0,
+    for idx_work in idxes do (
+      if length(idx_work)>1 then
+        error("only one dimensional arrays supported found: ", idx_work)
+      else
+        if integerp(idx_work[1]) then
+          if maxidx=k then
+            error("found index k and other integer index mixed in param ", p_work)            
+          else
+            maxidx: max(maxidx, idx_work[1])
+        else
+          if idx_work[1]=k then
+            if maxidx=0 then
+              maxidx: k
+            else
+                error("found index k and other integer index mixed in param ", p_work)            
+          else
+            error("only integer indices or ksupported, found: ", idx_work, " in param ", p_work)
+     ),
+     if maxidx>0 then maxidx: maxidx+1,
+     l_work:endcons([p_work, maxidx, 0, i_work], l_work),
+     i_work: i_work+1
+  ),
+  l_work
+);
+
+params: append(scalar_list, array_list);
+
+
+
+do_replacements(e_work):= block([u, x, p_work],
+  /* print("e_work: ", e_work), */
+  apply(apply1, cons('e_work, rules))
+);
+
+matchdeclare(rule_idx, atom);
+matchdeclare(any_exp, true);
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), p_work[1][idx_work], sconcat("p_work.",p_work[1], [idx_work])]));
+make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), sconcat("p_work\.",p_work[1], "[", rule_idx, "]")]));*/
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), rule_idx]));*/
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), sconcat("p_work\.",p_work[1])[rule_idx]]));*/
+make_param_rule(p_work):= (if p_work[2]=1 then apply(defrule, [concat('rule, p_work[1]), p_work[1], arraymake('p, [p_work[4], 0])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), arraymake('p, [p_work[4], rule_idx])]));
+map(make_param_rule, params);
+
+make_x_u_rules(xu, n_work):= block([i_work], for i_work:1 thru length(xu) do apply(defrule, [concat('rule, xu[i_work]), xu[i_work], arraymake(n_work, [i_work-1])]));
+make_x_u_rules(x, 'x);
+make_x_u_rules(u, 'u);
+defrule(rulenegexpo, any_exp^-1.0, any_exp^-1);
+
+do_assign(n_work, e_work, n_ind, [testdef]):= block([ret], (
+  ?ccurrind\*: n_ind,
+  /* print("e_work: ", e_work, "rep: ", do_replacements(e_work)), */
+  gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
+  if length(testdef)>0 and check_nan_inf_mode then (
+    ret: testdef[1],
+    gentran(eval(if 'mxIsNaN(n_work) or 'mxIsInf(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " is nan or inf\\n\""), 'k), return(ret))))
+  )
+));
+
+all_zero(v_work):= (apply("and", map(lambda([i_work], i_work=0.0), listarray(v_work))));
+print_def(n_work, v_work):= (gentran(literal(eval(if all_zero(v_work) then "#undef" else "#define")), " ", eval(n_work)));
+
+linear_index(i_work, s):= block([dims_: cons(0, copylist(s)),dim,idx_work],
+  for dim:1 thru length(dims_) do
+    dims_[dim]:dims_[dim]+1,
+  for dim:3 thru length(dims_) do
+    dims_[dim]:dims_[dim]*dims_[dim-1],
+  idx_work:0,
+  for dim:1 thru length(i_work) do
+    idx_work: idx_work + i_work[dim]*dims_[dim],
+  idx_work
+);
+
+print_jaco(n_work, v_work, [time_var_test]):= block([c_work,r_work,fx,fu],
+  for c_work:0 thru arrayinfo(v_work)[3][2] do (
+    gentran(literal("// d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i]/d ", eval(substring(sreverse(string(n_work)), 1, 2)), "[", eval(c_work), "]", cr)),
+    for r_work:0 thru arrayinfo(v_work)[3][1] do (
+      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work]) then
+        if atom(float(v_work[r_work, c_work])) then
+            do_assign(apply("'", [arraymake(n_work, [linear_index([r_work, c_work], arrayinfo(v_work)[3])])]), v_work[r_work, c_work], 4)
+        else
+            do_assign(apply("'", [arraymake(n_work, [linear_index([r_work, c_work], arrayinfo(v_work)[3])])]), v_work[r_work, c_work], 4, 0)
+    )
+  )
+      /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work]), literal("\;", cr))*/
+);
+      
+print_jaco2(n_work, v_work, [time_var_test]):= block([d3,c_work,r_work, fxx, fuu, fxu, lin_index:0, max_row_index],
+  for r_work:0 thru arrayinfo(v_work)[3][1] do (
+    gentran(literal("// d^2", eval(substring(sreverse(string(n_work)), 3, 4)), "[", eval(r_work), "]/d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i] d", eval(substring(sreverse(string(n_work)), 1, 2)), "[j]", cr)),    
+  
+    for d3:0 thru arrayinfo(v_work)[3][3] do (
+      if arrayinfo(v_work)[3][2]=arrayinfo(v_work)[3][3] and tri_matrix_mode then
+        max_row_index: d3
+      else
+        max_row_index: arrayinfo(v_work)[3][2],
+      gentran(literal("// j= ", eval(d3), cr)),    
+      for c_work:0 thru max_row_index do (
+        if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work, d3]) then (
+          if atom(float(v_work[r_work, c_work, d3])) then
+            do_assign(apply("'", [arraymake(n_work, [lin_index])]), v_work[r_work, c_work, d3], 4)
+          else
+            do_assign(apply("'", [arraymake(n_work, [lin_index])]), v_work[r_work, c_work, d3], 4, 0)
+        ),
+        lin_index: lin_index+1
+        /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work, d3], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work, d3]), literal("\;", cr))*/
+      )
+    )
+  )  
+);
+
+print_grad(n_work, v_work):= block([r_work, Vx, Qx, Qu, Lx, Lu, Fx],
+  for r_work:0 thru arrayinfo(v_work)[3][1] do
+      if atom(float(v_work[r_work])) then
+        do_assign(apply("'", [arraymake(n_work, [r_work])]), v_work[r_work], 4)
+      else
+        do_assign(apply("'", [arraymake(n_work, [r_work])]), v_work[r_work], 4, 0)
+    /*gentran(literal("    ", eval(n_work), "["), eval(r_work), literal("]= "), eval(v_work[r_work]), literal("\;", cr))*/
+);
+
+print_hess(n_work, v_work):= block([c_work,r_work, Lxx, Luu, Lxu, Qxx, Quu, Qxu, Fxx, Vxx, lin_index:0, max_row_index],
+  for c_work:0 thru arrayinfo(v_work)[3][2] do (
+    if arrayinfo(v_work)[3][1]=arrayinfo(v_work)[3][2] and tri_matrix_mode then
+      max_row_index: c_work
+    else
+      max_row_index: arrayinfo(v_work)[3][1],
+    for r_work:0 thru  max_row_index do (
+      if atom(float(v_work[r_work, c_work])) then
+        do_assign(apply("'", [arraymake(n_work, [lin_index])]), v_work[r_work, c_work], 4)
+      else
+        do_assign(apply("'", [arraymake(n_work, [lin_index])]), v_work[r_work, c_work], 4, 0),
+      /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work]), literal("\;", cr))*/
+      lin_index: lin_index+1
+    )
+  )
+);
+
+
+
+f_: map(lambda([i_work], arrayapply(f, [i_work])), x);
+
+fx:make_array(flonum, nx, nx);
+fx_: flatten(args(jacobian(f_, x)));
+fillarray(fx, fx_);
+
+fu:make_array(flonum, nx, nu);
+fu_: flatten(args(jacobian(f_, u)));
+fillarray(fu, fu_);
+
+fxx:make_array(flonum, nx, nx, nx);
+fillarray(fxx, flatten(args(jacobian(fx_, x))));
+
+fuu:make_array(flonum, nx, nu, nu);
+fillarray(fuu, flatten(args(jacobian(fu_, u))));
+
+fxu:make_array(flonum, nx, nx, nu);
+fillarray(fxu, flatten(args(jacobian(fx_, u))));
+
+Fx:make_array(flonum, nx);
+fillarray(Fx, args(jacobian([F], x))[1]);
+
+Fxx:make_array(flonum, nx, nx);
+fillarray(Fxx, flatten(args(hessian(F, x))));
+
+Lx:make_array(flonum, nx);
+fillarray(Lx, args(jacobian([L], x))[1]);
+
+Lxx:make_array(flonum, nx, nx);
+fillarray(Lxx, flatten(args(hessian(L, x))));
+
+Lu:make_array(flonum, nu);
+fillarray(Lu, args(jacobian([L], u))[1]);
+
+Luu:make_array(flonum, nu, nu);
+fillarray(Luu, flatten(args(hessian(L, u))));
+
+Lxu:make_array(flonum, nx, nu);
+fillarray(Lxu, flatten(args(jacobian(args(jacobian([L], x))[1], u))));
+
+
+do_clamp(i_work):= block([hu, idx_work, sign_, lim],
+  if not(apply('freeof, endcons(h[i_work], listify(setdifference(setify(depends_on_u_aux), setify(u)))))) then
+    error("constaint (", h[i_work], ") may only depend directly on one input"),
+  
+  hu: scanmap('float, flatten(args(jacobian([h[i_work]], u)))),
+  if apply("+", map(lambda([x], if equal(x, 0) then 0 else 1), hu))#1 then
+    error("constaint (", h[i_work], ") may depend on only one input"),
+     
+  if not(equal(abs(apply("+", hu)), 1)) then
+    error("coefficient of input in constaint (", h[i_work], ") must be 1 or -1"),
+      
+  idx_work: first(sublist_indices(hu, lambda([x], not(equal(x, 0))))),
+  sign_: apply("+", hu),
+  lim: h[i_work] - sign_*u[idx_work],
+  if sign_>0 then
+    lim: -lim,
+
+  gentran(literal("// constraint h[", eval(i_work), "]= ", eval(h[i_work]), cr)),
+  do_assign('limit, lim, 4),
+  
+  if sign_>0 then
+    gentran(eval(if 'u[idx_work-1]>'limit then lrsetq(u[idx_work-1], limit)))
+  else
+    gentran(eval(if 'u[idx_work-1]<'limit then lrsetq(u[idx_work-1], limit))),
+    
+ gentran(literal(cr))
+);

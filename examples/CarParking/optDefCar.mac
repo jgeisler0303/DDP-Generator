@@ -1,0 +1,19 @@
+x: [x_, y_, t, v];
+u: [w, a];
+
+s:(d + h*v*cos(w) - sqrt(d^2 - (h*v*sin(w))^2));
+f[x_]: x_ + 's*cos(t);
+f[y_]: y_ + 's*sin(t);
+f[t]: t + asin(sin(w)*h*v/d);
+f[v]: v + h*a;
+
+
+sqrtAbs(x, e):= sqrt(x^2 + e^2) - e;
+
+F: cf[0]*sqrtAbs(x_, pf[0])  + cf[1]*sqrtAbs(y_, pf[1])  + cf[2]*sqrtAbs(t, pf[2])  + cf[3]*sqrtAbs(v, pf[3])  + cx[0]*sqrtAbs(x_, px[0])  + cx[1]*sqrtAbs(y_, px[1]);
+L: cu[0]*w^2 + cu[1]*a^2 + cx[0]*sqrtAbs(x_, px[0]) + cx[1]*sqrtAbs(y_, px[1]);
+
+h[1]: -w + limW[0]; 
+h[2]: w - limW[1]; 
+h[3]: -a + limA[0]; 
+h[4]: a - limA[1]; 
