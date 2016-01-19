@@ -32,6 +32,18 @@
 double default_alpha[]= {1.0, 0.3727594, 0.1389495, 0.0517947, 0.0193070, 0.0071969, 0.0026827, 0.0010000};
 
 
+void printParams(double **p, int k) {
+    int i, k_;
+    for(i=0; i<n_params; i++) {
+        if(paramdesc[i]->size==-1)
+            PRNT("%s[k]= %g\n", paramdesc[i]->name, p[i][k]);
+        else if(paramdesc[i]->size==1)
+            PRNT("%s= %g\n", paramdesc[i]->name, p[i][0]);
+        else
+            printVec(p[i], paramdesc[i]->size, paramdesc[i]->name);
+    }
+}
+
 void standard_parameters(tOptSet *o) {
     o->alpha= default_alpha;
     o->n_alpha= 8;

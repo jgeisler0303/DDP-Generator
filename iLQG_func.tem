@@ -46,3 +46,12 @@ int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]) {
 <<print_aux(2);>>
     return 1;
 } 
+
+int getNG() {
+<<if member(g, arrays) then gentran(literal("return(", eval(length(flatten(rest(arrayinfo(g), 2)))), ")\;", cr)) else gentran(return(0))>>
+}
+
+int calcG(double g[], double x[], double u[], int k, aux_t *aux, double *p[]) {
+<<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
+    return(1);
+} 

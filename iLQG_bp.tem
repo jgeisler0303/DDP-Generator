@@ -1,5 +1,9 @@
 <<gentran(literal("\/\* File generated form template iLQG_bp.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
 
+#ifndef FULL_DDP
+    #define FULL_DDP 1
+#endif
+
 const int sizeofQxx= <<gentran(eval((nx*(nx+1))/2))$>>;
 const int sizeofQuu= <<gentran(eval((nu*(nu+1))/2))$>>;
 const int sizeofQxu= <<gentran(eval(nx*nu))$>>;
@@ -11,11 +15,13 @@ static int bp_derivsF(back_pass_t *derivs, aux_t *aux, const double *x, const do
 
 <<print_jaco('derivs\-\>fu, fu, false);>>
 
+#if FULL_DDP
 <<if not(all_zero(fxx)) then print_jaco2('derivs\-\>fxx, fxx, false);>>
 
 <<if not(all_zero(fuu)) then print_jaco2('derivs\-\>fuu, fuu, false);>>
 
 <<if not(all_zero(fxu)) then print_jaco2('derivs\-\>fxu, fxu, false);>>
+#endif
 
 // derivatives of F
 <<print_grad('derivs\-\>Vx, Fx);>>
@@ -30,11 +36,13 @@ static int bp_derivsL(back_pass_t *derivs, aux_t *aux, const double *x, const do
 
 <<print_jaco('derivs\-\>fu, fu, true);>>
 
+#if FULL_DDP
 <<if not(all_zero(fxx)) then print_jaco2('derivs\-\>fxx, fxx, true);>>
 
 <<if not(all_zero(fuu)) then print_jaco2('derivs\-\>fuu, fuu, true);>>
 
 <<if not(all_zero(fxu)) then print_jaco2('derivs\-\>fxu, fxu, true);>>
+#endif
 
 // derivatives of L
 <<print_grad('derivs\-\>Qx, Lx);>>

@@ -41,6 +41,7 @@ typedef struct optSet {
     double dV[2];
 } tOptSet;
 
+void printParams(double **p, int k);
 void standard_parameters(tOptSet *o);
 int iLQG(tOptSet *o);
 int initialize_iLQG(tOptSet *o);

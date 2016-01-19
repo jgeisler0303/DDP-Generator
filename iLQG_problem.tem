@@ -6,6 +6,10 @@
 // #include "matrix.h"
 #include "mex.h"
 
+#ifndef FULL_DDP
+    #define FULL_DDP 1
+#endif
+
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
 
@@ -23,9 +27,11 @@ typedef struct {
     double fx[<<gentran(eval(nx*nx))>>];
     double fu[<<gentran(eval(nx*nu))>>];
     double dummy[<<gentran(eval(max(nx, nu)^2))>>];
+#if FULL_DDP
     <<if not(all_zero(fxx)) then gentran(literal("double fxx[", eval(nx*(nx*(nx+1))/2), "]\;", cr))>>
     <<if not(all_zero(fuu)) then gentran(literal("double fuu[", eval(nx*(nu*(nu+1))/2), "]\;", cr))>>
     <<if not(all_zero(fxu)) then gentran(literal("double fxu[", eval(nx*nx*nu), "]\;", cr))>>
+#endif
 } back_pass_t;
 
 typedef struct {
@@ -47,5 +53,7 @@ void clampU(double x[], double u[], int k, aux_t *aux, double *p[], double N);
 int calcXVariableAux(double x[], int k, aux_t *aux, double *p[]);
 int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]);
 int calcStaticAux(aux_t *aux, double *p[]);
+int getNG();
+int calcG(double g[], double x[], double u[], int k, aux_t *aux, double *p[]);
 
 #endif // ILQG_PROBLEM_H

@@ -57,36 +57,36 @@ int back_pass(tOptSet *o) {
     //Vx=, Vxx=
     k= o->n_hor;
     x= &(o->x_nom[N_X*k]);
-    u= &(o->u_nom[N_X*(k-1)]);
+    u= &(o->u_nom[N_U*(k-1)]);
     
-    if(!calcStaticAux(&aux, p))
+    if(!calcStaticAux(&aux, p) ||
+       !calcXVariableAux(x, k, &aux, p) ||
+       !calcXUVariableAux(x, u, k, &aux, p) || // this should go, but calcXVariableDeriv and calcXUVariableDeriv are needed first
+       !calcStaticDeriv(&aux, p) ||
+       !calcVariableDeriv(x, u, k, &aux, p) ||
+       !bp_derivsF(&derivs, &aux, x, u, p, k))
+    {
+        printVec(x, N_X, "x");
+        printVec(u, N_U, "u");
+        printParams(p, k);
         return k+1;
-    
-    if(!calcXVariableAux(x, k, &aux, p))
-        return k+1;
-    
-    if(!calcStaticDeriv(&aux, p))
-        return k+1;
-    
-    if(!calcVariableDeriv(x, u, k, &aux, p))
-        return k+1;
-    
-    if(!bp_derivsF(&derivs, &aux, x, u, p, k))
-        return k+1;
+    }
 
     for(k= o->n_hor-1; k>=0; k--) {
         // Lx=, Lu=, Lxx=, Lxu=, Luu= is written to Q..
         x= &(o->x_nom[N_X*k]);
         u= &(o->u_nom[N_U*k]);
         
-        if(!calcXVariableAux(x, k, &aux, p) || !calcXUVariableAux(x, u, k, &aux, p))
+        if(!calcXVariableAux(x, k, &aux, p) ||
+           !calcXUVariableAux(x, u, k, &aux, p) ||
+           !calcVariableDeriv(x, u, k, &aux, p) ||
+           !bp_derivsL(&derivs, &aux, x, u, p, k))
+        {
+            printVec(x, N_X, "x");
+            printVec(u, N_U, "u");
+            printParams(p, k);
             return k+1;
-        
-        if(!calcVariableDeriv(x, u, k, &aux, p))
-            return k+1;
-        
-        if(!bp_derivsL(&derivs, &aux, x, u, p, k))
-            return k+1;
+        }
         
         if(o->regType==2) {
             memcpy(derivs.Qxu_reg, derivs.Qxu, sizeof(double)*sizeofQxu);
@@ -103,54 +103,63 @@ int back_pass(tOptSet *o) {
         addMul2Tri(derivs.Qxu, derivs.Vxx, derivs.fx, N_X, N_X, derivs.fu, N_X, N_U, derivs.dummy);
         // fxuVx = vectens(Vx(:,i+1),fxu(:,:,:,i));
         // Qux   = Qux + fxuVx;
+#if FULL_DDP
         for(j_= 0; j_<N_X*N_U; j_++) { // x, u
             d1= 0.0;
             for(i_= 0, k_= 0; i_<N_X; i_++, k_+= N_X*N_U) // f
                 d1+= derivs.Vx[i_]*derivs.fxu[j_+k_];
             derivs.Qxu[j_]+= d1;
         }
-
+#endif
         // Quu = cuu(:,:,i)   + fu(:,:,i)'*Vxx(:,:,i+1)*fu(:,:,i);
         addSquareTri(derivs.Quu, derivs.Vxx, derivs.fu, N_X, N_U, derivs.dummy);
         // fuuVx = vectens(Vx(:,i+1),fuu(:,:,:,i));
         // Quu   = Quu + fuuVx;
+#if FULL_DDP
         for(j_= 0; j_<sizeofQuu; j_++) { // u, u
             d1= 0.0;
             for(i_= 0, k_= 0; i_<N_X; i_++, k_+= sizeofQuu) // f
                 d1+= derivs.Vx[i_]*derivs.fuu[j_+k_];
             derivs.Quu[j_]+= d1;
         }                
+#endif
         
         // Qxx = cxx(:,:,i)   + fx(:,:,i)'*Vxx(:,:,i+1)*fx(:,:,i);
         addSquareTri(derivs.Qxx, derivs.Vxx, derivs.fx, N_X, N_X, derivs.dummy);
 
         // Qxx = Qxx + vectens(Vx(:,i+1),fxx(:,:,:,i));
+#if FULL_DDP
         for(j_= 0; j_<sizeofQxx; j_++) {// x, x
             d1= 0.0;
             for(i_= 0, k_= 0; i_<N_X; i_++, k_+= sizeofQxx) // f
                 d1+= derivs.Vx[i_]*derivs.fxx[j_+k_];
             derivs.Qxx[j_]+= d1;
         }
+#endif
         
         if(o->regType==2) {
             memcpy(derivs.Vxx_reg, derivs.Vxx, sizeof(double)*sizeofQxx);
             for(i_= 0; i_<N_X; i_++) derivs.Vxx_reg[UTRI_MAT_IDX(i_, i_)]+= o->lambda;
 
             addMul2Tri(derivs.Qxu_reg, derivs.Vxx_reg, derivs.fx, N_X, N_X, derivs.fu, N_X, N_U, derivs.dummy);
+#if FULL_DDP
             for(j_= 0; j_<N_X*N_U; j_++) {// x, u
                 d1= 0.0;
                 for(i_= 0, k_= 0; i_<N_X; i_++, k_+=N_X*N_U) // f
                     d1+= derivs.Vx[i_]*derivs.fxu[j_+k_];
                 derivs.Qxu_reg[j_]+= d1;
             }
+#endif
             addSquareTri(derivs.QuuF, derivs.Vxx_reg, derivs.fu, N_X, N_U, derivs.dummy);
             
+#if FULL_DDP
             for(j_= 0; j_<sizeofQuu; j_++) { // u, u
                 d1= 0.0;
                 for(i_= 0, k_= 0; i_<N_X; i_++, k_+= sizeofQuu) // f
                     d1+= derivs.Vx[i_]*derivs.fuu[j_+k_];
                 derivs.QuuF[j_]+= d1;
             }
+#endif
         } else {
             memcpy(derivs.QuuF, derivs.Quu, sizeof(double)*sizeofQuu);
             memcpy(derivs.Qxu_reg, derivs.Qxu, sizeof(double)*N_X*N_U);
@@ -176,6 +185,7 @@ int back_pass(tOptSet *o) {
             memcpy(&(o->l[MAT_IDX(0, k, N_U)]), &(o->l[MAT_IDX(0, k+1, N_U)]), sizeof(double)*N_U);
 
         if((qpRes= boxQP(derivs.QuuF, derivs.Qu, lower, upper, &(o->l[MAT_IDX(0, k, N_U)]), R, L, grad, grad_clamped, search, is_clamped, &m_free, invHfree, N_U))<1) {
+            PRNT("boxQP result: %d\n", qpRes);
             return k+1;
         }
         TRACE(("qpRes= %d\n", qpRes));
