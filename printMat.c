@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "iLQG.h"
 #include "printMat.h"
 #include "matMult.h"
 

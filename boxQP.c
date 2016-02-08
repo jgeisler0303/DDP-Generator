@@ -18,6 +18,10 @@
 #include "matMult.h"
 #include "printMat.h"
 
+#ifndef MOD_CHOL
+#define MOD_CHOL 0
+#endif
+
 #ifndef DEBUG_BOXQP
 #define DEBUG_BOXQP 0
 #else
@@ -32,7 +36,7 @@
    
 
 
-int boxQP(const double *H, const double *g, const double *lower, const double *upper, double *x, double *Hfree, double *L, double *grad, double *grad_clamped, double *search, int *is_clamped, int *n_free_, double *invHfree, const int n) {
+int boxQP(double *H, const double *g, const double *lower, const double *upper, double *x, double *Hfree, double *L, double *grad, double *grad_clamped, double *search, int *is_clamped, int *n_free_, double *invHfree, const int n) {
     int i, j, iter, i_free, j_free;
     double oldvalue= 0.0;
     int res= 0;
@@ -53,7 +57,7 @@ int boxQP(const double *H, const double *g, const double *lower, const double *u
     const double Armijo         = 0.1;    // Armijo parameter (fraction of linear improvement required)
     
     memset(Hfree, 0, sizeof(double)*(n*(n+1))/2);
-    
+
     for(i= 0; i<n; i++) {
         // clamp to limits
         if(x[i]>upper[i]) x[i]= upper[i];
@@ -62,12 +66,17 @@ int boxQP(const double *H, const double *g, const double *lower, const double *u
         is_clamped[i]= 0; // initial values
     }
 
+#if MOD_CHOL
+    if(mod_chol(H, n, L, (int *)grad_clamped /* reuse of memory */, search /* reuse of memory */)>0.0)
+        perm_tri_square(L, H, (int *)grad_clamped, n);
+#endif
+    
     // initial objective value
     value= 0.0;
     for(i= 0; i<n; i++) {
         d1= 0.0;
         for(j= 0; j<n; j++)
-            d1+= H[SYMTRI_MAT_IDX(i, j)]*x[j];
+            d1+= H[SYMTRI_MAT_IDX(i, j)]*x[j]; // TODO: in case of MOD_CHOL save some cycles and use L instead of H
         
         value+= x[i]*(g[i] + 0.5*d1);
     }
@@ -129,7 +138,6 @@ int boxQP(const double *H, const double *g, const double *lower, const double *u
                     j_free++;
                 }
             }
-            
             if(!cholesky_tri(Hfree, n_free, L)) {
                 return -1;
             }
@@ -161,22 +169,31 @@ int boxQP(const double *H, const double *g, const double *lower, const double *u
             if(!is_clamped[i]) {
                 search[i]= -x[i];
                 for(j_free= 0;  j_free<n_free; j_free++)
-                    // maybe better use chol_solve here?
                     search[i]-= invHfree[SYMTRI_MAT_IDX(i_free, j_free)] * grad_clamped[j_free];
 
                 i_free++;
             } else
                 search[i]= 0.0;
         }
-
+//         cholesky_solve_tri(Hfree, grad_clamped, search, n_free);
+//         for(i= n-1, i_free= n_free-1; i>=0; i--) {
+//             if(!is_clamped[i]) {
+//                 search[i]= -search[i_free] - x[i];
+//                 i_free--;
+//             } else
+//                 search[i]= 0.0;
+//         }
+        
         // check for descent direction
         // sdotg          = sum(search.*grad);
         sdotg= 0.0;
-        for(i= 0; i<n; i++) 
+        for(i= 0; i<n; i++)
             sdotg+= search[i]*grad[i];
         
-        if(sdotg>=0.0)
+        if(sdotg>=0.0) {
+            printTri(H, n, "H");
             return -2;
+        }
         
         // armijo linesearch
         step= 1.0;

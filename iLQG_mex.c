@@ -11,7 +11,6 @@
 #include "iLQG.h"
 #include "printMat.h"
 #include "matMult.h"
-#include "iLQG_problem.h"
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // dims
@@ -23,8 +22,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     double *success, *new_cost, *x_nom, *u_nom, *x_new, *u_new, *l, *L;
     // aux
     const mxArray *mxParams, *mxOptParam, *mxParam;
-
     const char *err_msg, *fname;
+    clock_t begin, end;
+
 
     if(nrhs!=4) { mexErrMsgIdAndTxt("MATLAB:minrhs", "wrong number of arguments (expected: x0, u_nom, params, opt_params)"); return; }
     if(nlhs!=4) { mexErrMsgIdAndTxt("MATLAB:minlhs", "wrong number of return values (expected: success, x_new, u_new, new_cost)"); return; }
@@ -95,37 +95,46 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     new_cost= mxGetPr(plhs[3]);
 
     // aux
-    o.x_nom= mxMalloc(sizeof(double)*n*N);
-    o.u_nom= mxMalloc(sizeof(double)*m*(N-1));
-    o.x_new= mxMalloc(sizeof(double)*n*N);
-    o.u_new= mxMalloc(sizeof(double)*m*(N-1));
-    o.l= mxMalloc(sizeof(double)*m*(N-1));
-    o.L= mxMalloc(sizeof(double)*m*n*(N-1));
+    o.trajectory= mxMalloc(sizeof(trajEl_t)*N);
+    o.candidates[0]= mxMalloc(sizeof(trajEl_t)*N);
+//     mexPrintf("sizeof trajEl_t: %d\n", sizeof(trajEl_t));
 
-    memcpy(o.u_nom, u_nom, sizeof(double)*m*(N-1));
+    for(k= 0; k<N-1; k++)
+        for(i= 0; i<N_U; i++)
+            o.trajectory[k].u[i]= u_nom[MAT_IDX(i, k, N_U)];
     
-    if(!initialize_iLQG(&o)) {
+    
+//     mexPrintf("Set const vars\n");
+    if(!init_trajectory(o.trajectory, &o) || !init_trajectory(o.candidates[0], &o)) {
         success[0]= 0;
         new_cost[0]= o.cost;
     } else {
-        success[0]= iLQG(&o);
-
-        if(!success[0]) {
-            memcpy(x_new, o.x_nom, sizeof(double)*n*N);
-            memcpy(u_new, o.u_nom, sizeof(double)*m*(N-1));
+        mexPrintf("Initializing trajectory\n");
+        if(!forward_pass(o.candidates[0], &o, 0.0, &o.cost)) {
+            success[0]= 0;
             new_cost[0]= o.cost;
-        } else {
-            memcpy(x_new, o.x_new, sizeof(double)*n*N);
-            memcpy(u_new, o.u_new, sizeof(double)*m*(N-1));
-            new_cost[0]= o.new_cost;
+        } else {  
+            makeCandidateNominal(&o, 0);
+            
+            mexPrintf("Starting iLQG\n");
+            begin = clock();
+            success[0]= iLQG(&o);
+            end = clock();
+            mexPrintf("Time for iLQG: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
+            
+            for(k= 0; k<N; k++)
+                for(i= 0; i<N_X; i++)
+                    x_new[MAT_IDX(i, k, N_X)]= o.trajectory[k].x[i];
+                
+            for(k= 0; k<N-1; k++)
+                for(i= 0; i<N_U; i++)
+                    u_new[MAT_IDX(i, k, N_U)]= o.trajectory[k].u[i];
+                    
+            new_cost[0]= o.cost;
         }
     }
     
     mxFree(o.p);
-    mxFree(o.x_nom);
-    mxFree(o.u_nom);
-    mxFree(o.x_new);
-    mxFree(o.u_new);
-    mxFree(o.l);
-    mxFree(o.L);
+    mxFree(o.trajectory);
+    mxFree(o.candidates[0]);
 }

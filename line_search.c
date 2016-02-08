@@ -15,7 +15,6 @@
 #include "line_search.h"
 #include "matMult.h"
 #include "printMat.h"
-#include "iLQG_problem.h"
  
 #ifndef DEBUG_FORWARDPASS
 #define DEBUG_FORWARDPASS 1
@@ -38,7 +37,7 @@ int line_search(tOptSet *o, int iter) {
     for(i= 0; i < o->n_alpha; i++) {
         alpha= o->alpha[i];
         
-        success= forward_pass(o->x0, o->x_nom, o->u_nom, o->x_new, o->u_new, &cnew, o->l, o->L, alpha, o->n_hor, o->p);
+        success= forward_pass(o->candidates[0], o, alpha, &cnew);
         if(success) {
             dcost= o->cost - cnew;
             expected= -alpha*(o->dV[0] + alpha*o->dV[1]);
@@ -46,7 +45,7 @@ int line_search(tOptSet *o, int iter) {
                 z = dcost/expected;
             else {
                 z= 0;
-                TRACE(("non-positive expected reduction: should not occur\n"));
+                TRACE(("non-positive expected reduction: should not occur (dV[0]= %g, dV[1]= %g)\n", o->dV[0], o->dV[1]));
             }
 
             if(z > o->zMin)
@@ -77,54 +76,3 @@ int line_search(tOptSet *o, int iter) {
 
     return success;
 }
-
-
-int forward_pass(const double *x0, const double *x_nom, const double *u_nom, double *x_new, double *u_new, double *cnew, const double *l, const double *L, double alpha, int N, double **params) {
-    int i, k, j;
-    double dx;
-    cnew[0]= 0.0;
-    aux_t aux;
-
-    for(i= 0; i<N_X; i++) x_new[i]= x0[i]; // ic
-
-    if(!calcStaticAux(&aux, params))
-        return 0;
-    
-    for(k= 0; k<N; k++) {
-        for(j= 0; j<N_U; j++)
-            u_new[MAT_IDX(j, k, N_U)]= u_nom[MAT_IDX(j, k, N_U)] + l[MAT_IDX(j, k, N_U)]*alpha;
-        
-        for(i= 0; i<N_X; i++) {
-            dx= x_new[MAT_IDX(i, k, N_X)] - x_nom[MAT_IDX(i, k, N_X)];
-            
-            for(j= 0; j<N_U; j++) {
-                u_new[MAT_IDX(j, k, N_U)]+= L[MAT_IDX3(j, i, k, N_U, N_X)]*dx;
-            }
-        }
-        
-        if(!calcXVariableAux(&x_new[MAT_IDX(0, k, N_X)], k, &aux, params))
-            return 0;
-        
-        clampU(&x_new[MAT_IDX(0, k, N_X)], &u_new[MAT_IDX(0, k, N_U)], k, &aux, params, N);
-        if(!calcXUVariableAux(&x_new[MAT_IDX(0, k, N_X)], &u_new[MAT_IDX(0, k, N_U)], k, &aux, params))
-            return 0;
-        
-        
-        if(!ddpf(&x_new[MAT_IDX(0, k+1, N_X)], &x_new[MAT_IDX(0, k, N_X)], &u_new[MAT_IDX(0, k, N_U)], k, &aux, params, N))
-            return 0;
-        
-        cnew[0]+= ddpJ(&x_new[MAT_IDX(0, k, N_X)], &u_new[MAT_IDX(0, k, N_U)], k, &aux, params, N);        
-        if(isnan(cnew[0]) || !finite(cnew[0]))
-            return 0;
-    }
-    
-    if(!calcXVariableAux(&x_new[MAT_IDX(0, N, N_X)], k, &aux, params))
-        return 0;
-        
-    cnew[0]+= ddpJ(&x_new[MAT_IDX(0, N, N_X)], 0, N, &aux, params, N);
-    if(isnan(cnew[0]) || !finite(cnew[0]))
-        return 0;
-        
-    return 1;
-}
-

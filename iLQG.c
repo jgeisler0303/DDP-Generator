@@ -11,12 +11,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "mex.h"
 #include "iLQG.h"
 #include "line_search.h"
 #include "back_pass.h"
-#include "iLQG_problem.h"
 
 #ifndef DEBUG_ILQG
 #define DEBUG_ILQG 1
@@ -30,7 +30,13 @@
 
 
 double default_alpha[]= {1.0, 0.3727594, 0.1389495, 0.0517947, 0.0193070, 0.0071969, 0.0026827, 0.0010000};
-
+#if MULTI_THREADED  
+pthread_mutex_t step_mutex= PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  next_step_condition= PTHREAD_COND_INITIALIZER;
+int step_calc_done;
+int derivs_result;
+int bp_result;
+#endif
 
 void printParams(double **p, int k) {
     int i, k_;
@@ -56,7 +62,7 @@ void standard_parameters(tOptSet *o) {
     o->lambdaMax= 1e10;
     o->lambdaMin= 1e-6;
     o->regType= 1;
-    o->zMin= 0;
+    o->zMin= 0.5;
     o->debug_level= 2;
 }
 
@@ -155,89 +161,77 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
     return NULL;
 }
 
-int initialize_iLQG(tOptSet *o) {
-    int i, j;
-    double *x= o->x_nom;
-    double *u= o->u_nom;
-    double **p= o->p;    
-    double lower[N_U];
-    double upper[N_U];
-    aux_t aux;
-    
-    for(i= 0; i<N_X; i++) x[i]= o->x0[i];
-    
-    if(!calcStaticAux(&aux, p)) {
-        if(o->debug_level>=1) PRNT("initializeDDP aux failed @step %d\n", -1);
-        return 0;
-    }
-    
-    o->cost= 0.0;
-    
-    for(i= 0; i<o->n_hor; i++, x+= N_X, u+= N_U) {
-        if(!calcXVariableAux(x, i, &aux, p)) {
-            if(o->debug_level>=1) PRNT("initializeDDP aux failed @step %d\n", i);
-            return 0;
-        }
-    
-        clampU(x, u, i, &aux, p, o->n_hor);
 
-        if(!calcXUVariableAux(x, u, i, &aux, p)) {
-            if(o->debug_level>=1) PRNT("initializeDDP aux failed @step %d\n", i);
-            return 0;
-        }
-        
-        if(!ddpf(x+N_X, x, u, i, &aux, p, o->n_hor)) {
-            if(o->debug_level>=1) PRNT("initializeDDP failed @step %d\n", i);
-            return 0;
-        }
-        
-        o->cost+= ddpJ(x, u, i, &aux, p, o->n_hor);        
-        if(isnan(o->cost) || !finite(o->cost))  {
-            if(o->debug_level>=1) PRNT("Objective is inf @step %d\n", i);
-            return 0;
-        }
-    }
-    
-    if(!calcXVariableAux(x, o->n_hor, &aux, p)) {
-        if(o->debug_level>=1) PRNT("initializeDDP aux failed @step %d\n", i);
-        return 0;
-    }
-    
-    o->cost+= ddpJ(x, NULL, o->n_hor, &aux, p, o->n_hor);
-    if(isnan(o->cost) || !finite(o->cost)) {
-        if(o->debug_level>=1) PRNT("Objective is inf @step %d\n", o->n_hor);
-        return 0;
-    }
-    
-    return 1;
-}
-    
+#if MULTI_THREADED  
+void *derivs_thread_function(void *o);
+void *bp_thread_function(void *o);
+#endif
+
 int iLQG(tOptSet *o) {
     int iter, diverge, backPassDone, fwdPassDone;
+    int newDeriv;
     double dlambda= o->dlambdaInit;
-    double *temp;
+    pthread_t derivs_thread;
+    pthread_t bp_thread;
     
     o->lambda= o->lambdaInit;
+    newDeriv= 1;
     
     for(iter= 0; iter < o->max_iter; iter++) {
         // ====== STEP 1: differentiate dynamics and cost along new trajectory: integrated in back_pass
+        if(newDeriv) {
+//             TRACE(("Calculating derivatives"));
+#if MULTI_THREADED  
+            step_calc_done= o->n_hor+1;
+            pthread_create(&derivs_thread, NULL, &derivs_thread_function, o);
+#else
+            if(!calc_derivs(o)) {
+                TRACE(("Calculating derivatives failed.\n"));
+                break;
+            } else {
+//                 TRACE(("\n"));
+            }
+            
+            newDeriv= 0;
+#endif
+        }
+            
         // ====== STEP 2: backward pass, compute optimal control law and cost-to-go
-        
         backPassDone= 0;
+//         TRACE(("Back pass:\n"));
         while(!backPassDone) {
-            diverge= back_pass(o);
-        
-            if(diverge) {
+#if MULTI_THREADED  
+            pthread_create(&bp_thread, NULL, &bp_thread_function, o);
+            pthread_join(bp_thread, NULL);
+            if(bp_result==1) {
+#else
+            if(back_pass(o)) {
+#endif            
                 if(o->debug_level>=1)
-                    TRACE(("Back pass failed at timestep %d.\n",diverge));
+                    TRACE(("Back pass failed.\n"));
 
                 dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
                 o->lambda= max(o->lambda * dlambda, o->lambdaMin);
                 if(o->lambda > o->lambdaMax)
                     break;
-            } else
+#if MULTI_THREADED               
+            } else if(bp_result==2) {
+                TRACE(("Back pass derivatives failed.\n"));
+#endif
+            } else {
                 backPassDone= 1;
+//                 TRACE(("...done\n"));
+            }
         }
+        
+#if MULTI_THREADED               
+        pthread_join(derivs_thread, NULL);
+        newDeriv= 0;
+        if(!derivs_result) {
+            TRACE(("Calculating derivatives failed.\n"));
+            break;
+        }
+#endif
         
         // check for termination due to small gradient
         if(o->g_norm < o->tolGrad && o->lambda < 1e-5) {
@@ -251,26 +245,23 @@ int iLQG(tOptSet *o) {
         // ====== STEP 3: line-search to find new control sequence, trajectory, cost
         if(backPassDone)
             fwdPassDone= line_search(o, iter);
-
+        else
+            break;
+        
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPassDone) {
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  log10lam: %3.1f\n", iter+1, o->cost, o->dcost, o->g_norm, log10(o->lambda)));
+                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda)));
             
             // decrease lambda
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
             o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
             
             // accept changes
-            temp= o->x_nom;
-            o->x_nom= o->x_new;
-            o->x_new= temp;
-            
-            temp= o->u_nom;
-            o->u_nom= o->u_new;
-            o->u_new= temp;
+            makeCandidateNominal(o, 0);
 
             o->cost= o->new_cost;
+            newDeriv= 1;
             
             // terminate ?
             if(o->dcost < o->tolFun) {
@@ -300,7 +291,12 @@ int iLQG(tOptSet *o) {
     
     o->iterations= iter;
     
-    if(iter>=o->max_iter) {
+    if(!backPassDone) {
+        if(o->debug_level>=1)
+            TRACE(("\nEXIT: no descent direction found.\n"));
+        
+        return 0;    
+    } else if(iter>=o->max_iter) {
         if(o->debug_level>=1)
             TRACE(("\nEXIT: Maximum iterations reached.\n"));
         
@@ -308,3 +304,27 @@ int iLQG(tOptSet *o) {
     }
     return 1;
 }
+
+void makeCandidateNominal(tOptSet *o, int idx) {
+    // TODO check for valid idx
+    trajEl_t *temp;
+    temp= o->trajectory;
+    o->trajectory= o->candidates[idx];
+    o->candidates[idx]= temp;
+}
+
+#if MULTI_THREADED  
+void *derivs_thread_function(void *o) {
+    derivs_result= calc_derivs((tOptSet *)o);
+    if(!derivs_result || step_calc_done>0) {
+        pthread_mutex_lock(&step_mutex);
+        step_calc_done= -1;
+        pthread_cond_signal(&next_step_condition);
+        pthread_mutex_unlock(&step_mutex);
+    }
+}
+
+void *bp_thread_function(void *o) {
+    bp_result= back_pass((tOptSet *)o);
+}
+#endif

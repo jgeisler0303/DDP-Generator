@@ -6,54 +6,37 @@
 // #include "matrix.h"
 #include "mex.h"
 
-#ifndef FULL_DDP
-    #define FULL_DDP 1
-#endif
-
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
 
-typedef struct {
-    double Vx[<<gentran(eval(nx))>>];
-    double Vxx[<<gentran(eval((nx*(nx+1))/2))>>];
-    double Vxx_reg[<<gentran(eval((nx*(nx+1))/2))>>];
-    double Qx[<<gentran(eval(nx))>>];
-    double Qu[<<gentran(eval(nu))>>];
-    double Qxu[<<gentran(eval(nx*nu))>>];
-    double Qxu_reg[<<gentran(eval(nx*nu))>>];
-    double Qxx[<<gentran(eval((nx*(nx+1))/2))>>];
-    double Quu[<<gentran(eval((nu*(nu+1))/2))>>];
-    double QuuF[<<gentran(eval((nu*(nu+1))/2))>>];
-    double fx[<<gentran(eval(nx*nx))>>];
-    double fu[<<gentran(eval(nx*nu))>>];
-    double dummy[<<gentran(eval(max(nx, nu)^2))>>];
-#if FULL_DDP
-    <<if not(all_zero(fxx)) then gentran(literal("double fxx[", eval(nx*(nx*(nx+1))/2), "]\;", cr))>>
-    <<if not(all_zero(fuu)) then gentran(literal("double fuu[", eval(nx*(nu*(nu+1))/2), "]\;", cr))>>
-    <<if not(all_zero(fxu)) then gentran(literal("double fxu[", eval(nx*nx*nu), "]\;", cr))>>
-#endif
-} back_pass_t;
+#define sizeofQxx <<gentran(eval((nx*(nx+1))/2))$>> 
+#define sizeofQuu <<gentran(eval((nu*(nu+1))/2))$>> 
+#define sizeofQxu <<gentran(eval(nx*nu))$>> 
 
 typedef struct {
+    double x[N_X];
+    double u[N_U];
+    double lower[N_U];
+    double upper[N_U];
+    
+    double l[N_U];
+    double L[N_U*N_X]; 
+    double c;
+    double cx[N_X];
+    double cxx[sizeofQxx];
+    double cu[N_U];
+    double cuu[sizeofQuu];
+    double cxu[sizeofQxu];
+    double fx[N_X*N_X];
+    double fu[N_X*N_U];
+#if FULL_DDP
+    double fxx[N_X*sizeofQxx];
+    double fuu[N_X*sizeofQuu];
+    double fxu[N_X*sizeofQxu];
+#endif
 <<block([a], for a in aux_def do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
 
 <<block([a], for a in aux_deriv do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
-} aux_t;
-
-extern int n_params;
-extern int n_vars;
-extern tParamDesc *paramdesc[];
-
-// double ddpJ(double x[], double u[], int k, double *p[], double N);
-// int ddpf(double x_next[], double x[], double u[], int k, double *p[], double N);
-// void clampU(double x[], double u[], int k, double *p[], double N);
-double ddpJ(double x[], double u[], int k, aux_t *aux, double *p[], double N);
-int ddpf(double x_next[], double x[], double u[], int k, aux_t *aux, double *p[], double N);
-void clampU(double x[], double u[], int k, aux_t *aux, double *p[], double N);
-int calcXVariableAux(double x[], int k, aux_t *aux, double *p[]);
-int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]);
-int calcStaticAux(aux_t *aux, double *p[]);
-int getNG();
-int calcG(double g[], double x[], double u[], int k, aux_t *aux, double *p[]);
+} trajEl_t;
 
 #endif // ILQG_PROBLEM_H

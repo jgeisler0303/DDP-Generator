@@ -1,6 +1,9 @@
 <<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
 #include "iLQG.h"
 #include "iLQG_problem.h"
+#include "matMult.h"
+
+<<tri_matrix_mode: true;>>
 
 int n_params= <<gentran(eval(length(params)))$>>;
     
@@ -11,8 +14,18 @@ int n_vars= 0;
     
 tParamDesc *paramdesc[]= {<<block([i], for i:1 thru length(params) do (gentran(literal(&, "p_name", eval(i))), if i#length(params) then gentran(literal(", "))))$>>};
 
-double ddpJ(double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+static int calcXVariableAux(trajEl_t *t, int k, double *p[]);
+static int calcXUVariableAux(trajEl_t *t, int k, double *p[]);
+static int calcAuxDeriv(trajEl_t *t, int k, double *p[]);
+static int bp_derivsF(trajEl_t *t, int k, double *p[]);
+static int bp_derivsL(trajEl_t *t, int k, double *p[]);
+
+static double ddpJ(trajEl_t *t, int k, double *p[], double N) {
+    const double *x= t->x;
+    const double *u= t->u;
+    trajEl_t *aux= t;
     double t0;
+    
     if(k<N) {
         <<do_assign(t0, L, 3*4)>>
     } else {
@@ -21,37 +34,231 @@ double ddpJ(double x[], double u[], int k, aux_t *aux, double *p[], double N) {
     return t0;
 }
 
-int ddpf(double x_next[], double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+static int ddpf(double x_next[], trajEl_t *t, int k, double *p[], double N) {
+    const double *x= t->x;
+    const double *u= t->u;
+    trajEl_t *aux= t;
+    
 <<block([i], for i:1 thru nx do do_assign(x_next[i-1], f[x[i]], 4, 0))>>
     return 1;
 }
 
-void clampU(double x[], double u[], int k, aux_t *aux, double *p[], double N) {
+void clampU(double *u, trajEl_t *t, int k, double *p[], double N) {
     double limit;
+    const double *x= t->x;
+    trajEl_t *aux= t;
 
 <<block([i], for i in flatten(rest(arrayinfo(h), 2)) do do_clamp(i))>>
 }
 
-int calcStaticAux(aux_t *aux, double *p[]) {
-<<print_aux(0);>>
+
+int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
+    int i, k, j;
+    double dx;
+    csum[0]= 0.0;
+    double *x0= o->x0;
+    int N= o->n_hor;
+    double **params= o->p;
+    trajEl_t *t= o->trajectory;
+    
+    for(i= 0; i<N_X; i++) c->x[i]= x0[i]; // ic
+
+    for(k= 0; k<N; k++, t++, c++) {
+        for(j= 0; j<N_U; j++)
+            c->u[j]= t->u[j] + t->l[j]*alpha;
+        
+        if(alpha) {
+            for(i= 0; i<N_X; i++) {
+                dx= c->x[i] - t->x[i];
+                
+                for(j= 0; j<N_U; j++) {
+                    c->u[j]+= t->L[MAT_IDX(j, i, N_U)]*dx;
+                }
+            }
+        }
+        
+        if(!calcXVariableAux(c, k, params))
+            return 0;
+        
+        clampU(c->u, c, k, params, N);
+        if(!calcXUVariableAux(c, k, params))
+            return 0;
+        
+        if(!ddpf((c+1)->x, c, k, params, N))
+            return 0;
+        
+        csum[0]+= c->c= ddpJ(c, k, params, N);        
+        if(isnan(c->c) || !finite(c->c))
+            return 0;
+    }
+    
+    if(!calcXVariableAux(c, N, params))
+        return 0;
+        
+    csum[0]+= t->c= ddpJ(c, N, params, N);
+    if(isnan(c->c) || !finite(c->c))
+        return 0;
+        
     return 1;
 }
 
-int calcXVariableAux(double x[], int k, aux_t *aux, double *p[]) {
+int calc_derivs(tOptSet *o) {
+    int k, i_;
+    int N= o->n_hor;
+    trajEl_t *t= o->trajectory + N;
+
+    if(!calcAuxDeriv(t, N, o->p)) return 0;
+    if(!bp_derivsF(t, N, o->p)) return 0;
+    
+#if MULTI_THREADED   
+    pthread_mutex_lock(&step_mutex);
+    step_calc_done= N;
+    pthread_cond_signal(&next_step_condition);
+    pthread_mutex_unlock(&step_mutex);
+#endif
+
+    t--;
+    for(k= N-1; k>=0; k--, t--) {
+        if(!calcAuxDeriv(t, k, o->p)) return 0;
+        if(!bp_derivsL(t, k, o->p)) return 0;
+        
+        for(i_= 0; i_<N_U; i_++) t->lower[i_]= -mxGetInf();
+        clampU(t->lower, t,  k, o->p, o->n_hor);
+        for(i_= 0; i_<N_U; i_++) t->upper[i_]=  mxGetInf();
+        clampU(t->upper, t, k, o->p, o->n_hor);
+        for(i_= 0; i_<N_U; i_++) {
+            t->lower[i_]-= t->u[i_];
+            t->upper[i_]-= t->u[i_]; 
+        }
+
+#if MULTI_THREADED   
+        pthread_mutex_lock(&step_mutex);
+        step_calc_done= k;
+        pthread_cond_signal(&next_step_condition);
+        pthread_mutex_unlock(&step_mutex);
+#endif
+    }
+    return 1;
+}
+
+static int calcXVariableAux(trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    trajEl_t *aux= t;
+    
 <<print_aux(1);>>
     return 1;
 } 
 
-int calcXUVariableAux(double x[], double u[], int k, aux_t *aux, double *p[]) {
+static int calcXUVariableAux(trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    const double *u= t->u;
+    trajEl_t *aux= t;
+    
 <<print_aux(2);>>
     return 1;
 } 
 
-int getNG() {
+static int calcAuxDeriv(trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    const double *u= t->u;
+    trajEl_t *aux= t;
+    
+<<print_deriv(true);>>
+    return 1;
+}
+
+static int bp_derivsF(trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    const double *u= t->u;
+    const trajEl_t *aux= t;
+    
+<<print_grad('t\-\>cx, Fx);>>
+
+<<print_hess('t\-\>cxx, Fxx);>>
+    return 1;
+}
+
+static int bp_derivsL(trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    const double *u= t->u;
+    const trajEl_t *aux= t;
+    
+// derivatives of f
+<<print_jaco('t\-\>fx, fx, true);>>
+
+<<print_jaco('t\-\>fu, fu, true);>>
+
+#if FULL_DDP
+<<if not(all_zero(fxx)) then print_jaco2('t\-\>fxx, fxx, true);>>
+
+<<if not(all_zero(fuu)) then print_jaco2('t\-\>fuu, fuu, true);>>
+
+<<if not(all_zero(fxu)) then print_jaco2('t\-\>fxu, fxu, true);>>
+#endif
+
+// derivatives of L
+<<print_grad('t\-\>cx, Lx);>>
+
+<<print_hess('t\-\>cxx, Lxx);>>
+
+<<print_grad('t\-\>cu, Lu);>>
+
+<<print_hess('t\-\>cuu, Luu);>>
+
+<<print_hess('t\-\>cxu, Lxu);>>
+
+    return 1;
+}
+
+int init_trajectory(trajEl_t *t, tOptSet *o) {
+    trajEl_t *aux= t;
+    int k;
+    double **p= o->p;
+
+    for(k= 0; k<o->n_hor; k++, t++) {
+<<print_aux(0);>>
+
+<<print_deriv(false);>>
+
+// derivatives of L
+<<print_grad('t\-\>cx, Lx, false);>>
+
+<<print_hess('t\-\>cxx, Lxx, false);>>
+
+<<print_grad('t\-\>cu, Lu, false);>>
+
+<<print_hess('t\-\>cuu, Luu, false);>>
+
+<<print_hess('t\-\>cxu, Lxu, false);>>
+
+// derivatives of f
+<<print_jaco('t\-\>fx, fx, false);>>
+
+<<print_jaco('t\-\>fu, fu, false);>>
+
+#if FULL_DDP
+<<if not(all_zero(fxx)) then print_jaco2('t\-\>fxx, fxx, false) else gentran(literal("    memset(t\-\>fxx, 0, sizeof(double)*N_X*sizeofQxx)\;", cr));>>
+
+<<if not(all_zero(fuu)) then print_jaco2('t\-\>fuu, fuu, false) else gentran(literal("    memset(t\-\>fuu, 0, sizeof(double)*N_X*sizeofQuu)\;", cr));>>
+
+<<if not(all_zero(fxu)) then print_jaco2('t\-\>fxu, fxu, false) else gentran(literal("    memset(t\-\>fxu, 0, sizeof(double)*N_X*sizeofQxu)\;", cr));>>
+#endif
+    }
+    
+<<print_grad('t\-\>cx, Fx, false);>>
+
+<<print_hess('t\-\>cxx, Fxx, false);>>
+}
+
+int get_g_size() {
 <<if member(g, arrays) then gentran(literal("return(", eval(length(flatten(rest(arrayinfo(g), 2)))), ")\;", cr)) else gentran(return(0))>>
 }
 
-int calcG(double g[], double x[], double u[], int k, aux_t *aux, double *p[]) {
+int calcG(double g[], trajEl_t *t, int k, double *p[]) {
+    const double *x= t->x;
+    const double *u= t->u;
+    const trajEl_t *aux= t;
+    
 <<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
     return(1);
 } 
