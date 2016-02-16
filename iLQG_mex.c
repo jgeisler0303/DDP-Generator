@@ -7,6 +7,9 @@
 #include <string.h>
 
 #include "mex.h"
+#ifndef  HAVE_OCTAVE
+#include "matrix.h"
+#endif
 
 #include "iLQG.h"
 #include "printMat.h"
@@ -79,7 +82,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         }
         o.p[i]= mxGetPr(mxParam);
     }
-
+    // printParams(o.p, o.n_hor);
 
     // outputs
     plhs[0]= mxCreateDoubleMatrix(1, 1, mxREAL);
@@ -104,7 +107,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             o.trajectory[k].u[i]= u_nom[MAT_IDX(i, k, N_U)];
     
     
-//     mexPrintf("Set const vars\n");
+     mexPrintf("Set const vars\n");
     if(!init_trajectory(o.trajectory, &o) || !init_trajectory(o.candidates[0], &o)) {
         success[0]= 0;
         new_cost[0]= o.cost;

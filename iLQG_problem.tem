@@ -3,8 +3,10 @@
 #define ILQG_PROBLEM_H
 
 #include <math.h>
-// #include "matrix.h"
 #include "mex.h"
+#ifndef  HAVE_OCTAVE
+#include "matrix.h"
+#endif
 
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
@@ -18,6 +20,10 @@ typedef struct {
     double u[N_U];
     double lower[N_U];
     double upper[N_U];
+    double lower_sign[N_U];
+    double upper_sign[N_U];
+    double lower_hx[N_X*N_U];
+    double upper_hx[N_X*N_U];
     
     double l[N_U];
     double L[N_U*N_X]; 

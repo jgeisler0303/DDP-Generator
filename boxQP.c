@@ -105,20 +105,20 @@ int boxQP(double *H, const double *g, const double *lower, const double *upper, 
             if(x[i]<=lower[i] && grad[i]>0)
                 is_clamped[i]= 1;
             else if(x[i]>=upper[i] && grad[i]<0)
-                is_clamped[i]= 1;
+                is_clamped[i]= 2;
             else {
                 is_clamped[i]= 0;
                 all_clamped= 0;
                 gnorm+= grad[i]*grad[i];
                 n_free++;
             }
-            if(was_clamped!=is_clamped[i])
+            if((!was_clamped) != (!is_clamped[i]))
                 clamps_changed= 1;
         }
         n_free_[0]= n_free;
         
-        for(i= 0; i<n; i++) search[i]= !is_clamped[i];
-        printVec_((search, n, "free"));
+//         for(i= 0; i<n; i++) search[i]= !is_clamped[i];
+//         printVec_((search, n, "free"));
         
         TRACE(("gnorm= %g\n", sqrt(gnorm)));
         

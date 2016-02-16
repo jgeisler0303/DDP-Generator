@@ -14,16 +14,18 @@ int n_vars= 0;
     
 tParamDesc *paramdesc[]= {<<block([i], for i:1 thru length(params) do (gentran(literal(&, "p_name", eval(i))), if i#length(params) then gentran(literal(", "))))$>>};
 
-static int calcXVariableAux(trajEl_t *t, int k, double *p[]);
-static int calcXUVariableAux(trajEl_t *t, int k, double *p[]);
-static int calcAuxDeriv(trajEl_t *t, int k, double *p[]);
-static int bp_derivsF(trajEl_t *t, int k, double *p[]);
-static int bp_derivsL(trajEl_t *t, int k, double *p[]);
+<<for a_work in aux_def do gentran(literal("#define ", eval(concat(aux_prefix, a_work[1])), " t->", eval(a_work[1]), cr))$>>
+<<for a_work in aux_deriv do gentran(literal("#define ", eval(concat(daux_prefix, a_work[1])), " t->", eval(a_work[1]), cr))$>>
 
-static double ddpJ(trajEl_t *t, int k, double *p[], double N) {
+static int calcXVariableAux(trajEl_t *t, int k, double **p);
+static int calcXUVariableAux(trajEl_t *t, int k, double **p);
+static int calcAuxDeriv(trajEl_t *t, int k, double **p);
+static int bp_derivsF(trajEl_t *t, int k, double **p);
+static int bp_derivsL(trajEl_t *t, int k, double **p);
+
+static double ddpJ(trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x;
     const double *u= t->u;
-    trajEl_t *aux= t;
     double t0;
     
     if(k<N) {
@@ -34,23 +36,66 @@ static double ddpJ(trajEl_t *t, int k, double *p[], double N) {
     return t0;
 }
 
-static int ddpf(double x_next[], trajEl_t *t, int k, double *p[], double N) {
+static int ddpf(double x_next[], trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x;
     const double *u= t->u;
-    trajEl_t *aux= t;
     
 <<block([i], for i:1 thru nx do do_assign(x_next[i-1], f[x[i]], 4, 0))>>
     return 1;
 }
 
-void clampU(double *u, trajEl_t *t, int k, double *p[], double N) {
+void clampU(double *u, trajEl_t *t, int k, double **p, int N) {
     double limit;
     const double *x= t->x;
-    trajEl_t *aux= t;
 
-<<block([i], for i in flatten(rest(arrayinfo(h), 2)) do do_clamp(i))>>
+<<block([i], for i: 1 thru nh do do_clamp(i))>>
 }
 
+static void limitsU(trajEl_t *t, int k, double **p, int N) {
+    int i, j;
+    int lower_idx[N_U], upper_idx[N_U], *idx_;
+    double limit;
+    const double *x= t->x;
+    double *hx_, *h_sign;
+
+    for(i= 0; i<N_U; i++) {
+        lower_idx[i]= -1;
+        upper_idx[i]= -1;
+        t->lower[i]= -HUGE_VAL;
+        t->upper[i]= HUGE_VAL;
+    }        
+    
+<<block([i], for i: 1 thru nh do do_limits('t\-\>, i))>>
+
+    for(i= 0; i<N_U; i++) {
+        t->lower[i]-= t->u[i];
+        t->upper[i]-= t->u[i]; 
+    }
+
+    for(j= 0; j<2; j++) {
+        if(j==0) {
+            idx_= lower_idx;
+            hx_= t->lower_hx;
+            h_sign= t->lower_sign;
+        } else {
+            idx_= upper_idx;
+            hx_= t->upper_hx;
+            h_sign= t->upper_sign;
+        }
+        for(i= 0; i<N_U; i++, hx_+= N_X, h_sign++) {
+            switch(idx_[i]) {
+                case -1:
+                    h_sign[0]= 0.0;
+                    break;
+<<block([i], for i: 1 thru nh do (
+  gentran(literal("                case ", eval(i-1), "\:", cr)),
+  do_hx('hx_, 'h_sign, i, 4*5),
+  gentran(literal("                    break\;", cr))
+))>>
+            }
+        }
+    }
+}
 
 int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
     int i, k, j;
@@ -95,7 +140,7 @@ int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
     if(!calcXVariableAux(c, N, params))
         return 0;
         
-    csum[0]+= t->c= ddpJ(c, N, params, N);
+    csum[0]+= c->c= ddpJ(c, N, params, N);
     if(isnan(c->c) || !finite(c->c))
         return 0;
         
@@ -122,14 +167,7 @@ int calc_derivs(tOptSet *o) {
         if(!calcAuxDeriv(t, k, o->p)) return 0;
         if(!bp_derivsL(t, k, o->p)) return 0;
         
-        for(i_= 0; i_<N_U; i_++) t->lower[i_]= -mxGetInf();
-        clampU(t->lower, t,  k, o->p, o->n_hor);
-        for(i_= 0; i_<N_U; i_++) t->upper[i_]=  mxGetInf();
-        clampU(t->upper, t, k, o->p, o->n_hor);
-        for(i_= 0; i_<N_U; i_++) {
-            t->lower[i_]-= t->u[i_];
-            t->upper[i_]-= t->u[i_]; 
-        }
+        limitsU(t, k, o->p, N);
 
 #if MULTI_THREADED   
         pthread_mutex_lock(&step_mutex);
@@ -141,36 +179,32 @@ int calc_derivs(tOptSet *o) {
     return 1;
 }
 
-static int calcXVariableAux(trajEl_t *t, int k, double *p[]) {
+static int calcXVariableAux(trajEl_t *t, int k, double **p) {
     const double *x= t->x;
-    trajEl_t *aux= t;
     
 <<print_aux(1);>>
     return 1;
 } 
 
-static int calcXUVariableAux(trajEl_t *t, int k, double *p[]) {
+static int calcXUVariableAux(trajEl_t *t, int k, double **p) {
     const double *x= t->x;
     const double *u= t->u;
-    trajEl_t *aux= t;
     
 <<print_aux(2);>>
     return 1;
 } 
 
-static int calcAuxDeriv(trajEl_t *t, int k, double *p[]) {
+static int calcAuxDeriv(trajEl_t *t, int k, double **p) {
     const double *x= t->x;
     const double *u= t->u;
-    trajEl_t *aux= t;
     
 <<print_deriv(true);>>
     return 1;
 }
 
-static int bp_derivsF(trajEl_t *t, int k, double *p[]) {
+static int bp_derivsF(trajEl_t *t, int k, double **p) {
     const double *x= t->x;
     const double *u= t->u;
-    const trajEl_t *aux= t;
     
 <<print_grad('t\-\>cx, Fx);>>
 
@@ -178,10 +212,9 @@ static int bp_derivsF(trajEl_t *t, int k, double *p[]) {
     return 1;
 }
 
-static int bp_derivsL(trajEl_t *t, int k, double *p[]) {
+static int bp_derivsL(trajEl_t *t, int k, double **p) {
     const double *x= t->x;
     const double *u= t->u;
-    const trajEl_t *aux= t;
     
 // derivatives of f
 <<print_jaco('t\-\>fx, fx, true);>>
@@ -211,13 +244,16 @@ static int bp_derivsL(trajEl_t *t, int k, double *p[]) {
 }
 
 int init_trajectory(trajEl_t *t, tOptSet *o) {
-    trajEl_t *aux= t;
     int k;
     double **p= o->p;
 
-    for(k= 0; k<o->n_hor; k++, t++) {
+    for(k= 0; k<=o->n_hor; k++, t++) {
 <<print_aux(0);>>
 
+<<print_deriv(false);>>
+
+        if(k==o->n_hor) break;
+        
 <<print_deriv(false);>>
 
 // derivatives of L
@@ -248,16 +284,17 @@ int init_trajectory(trajEl_t *t, tOptSet *o) {
 <<print_grad('t\-\>cx, Fx, false);>>
 
 <<print_hess('t\-\>cxx, Fxx, false);>>
+
+    return 1;
 }
 
 int get_g_size() {
 <<if member(g, arrays) then gentran(literal("return(", eval(length(flatten(rest(arrayinfo(g), 2)))), ")\;", cr)) else gentran(return(0))>>
 }
 
-int calcG(double g[], trajEl_t *t, int k, double *p[]) {
+int calcG(double g[], trajEl_t *t, int k, double **p) {
     const double *x= t->x;
     const double *u= t->u;
-    const trajEl_t *aux= t;
     
 <<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
     return(1);

@@ -28,12 +28,14 @@ if listp(L) then
   
 if not(member(h, arrays)) then
   error("array of input limits not defined");
-  
+ 
 gentranlang(c)$
 off('float)$
 off(gentranseg)$
 ?ccurrind\*: 4$
 ?clinelen\*: 1000$
+aux_prefix: aux_;
+daux_prefix: daux_;
 
 remove(all, rule);
 
@@ -42,7 +44,7 @@ nu:length(u);
 tri_matrix_mode: false;
 check_nan_inf_mode: true;
 
-time_var_symbols: append(x, u, [k]);
+time_var_symbols: append(x, u /*, [k]*/);
 is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
 
 allvars: setdifference(setify(append(listofvars(listarray(h)), listofvars(listarray(f)),listofvars(F), listofvars(L))), {k});
@@ -152,7 +154,7 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
     eva: ev(a_work),
     aux_def: endcons([a_work, eva], aux_def),
     /* apply(defrule, [concat('rule, '_, a_work), concat("'", a_work), concat('aux\-\>, a_work)]),*/
-    apply(defrule, [concat('rule, '_, a_work), arraymake('aux_vars, [i_work]), concat('aux\-\>, a_work)]),
+    apply(defrule, [concat('rule, '_, a_work), arraymake('aux_vars, [i_work]), concat(aux_prefix, a_work)]),
     if is_time_var(eva) then
       time_var_symbols: cons(a_work, time_var_symbols),
     if does_depend_on_u(eva) then
@@ -164,7 +166,7 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
       if d_work#0 then (
         dname_work: concat('diff_, a_work, '_, d1_work),
         aux_deriv: endcons([dname_work, d_work], aux_deriv),
-        apply(defrule, [concat('rule, '_, dname_work), dname_work, concat('aux\-\>, dname_work)]),
+        apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
         if is_time_var(d_work) then
           time_var_symbols: cons(dname_work, time_var_symbols)
       ),
@@ -175,7 +177,7 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
           d_ab: sort([d1_work, d2_work]),
           dname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
           aux_deriv: endcons([dname_work, d_work], aux_deriv),
-          apply(defrule, [concat('rule, '_, dname_work), dname_work, concat('aux\-\>, dname_work)]),
+          apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
           if is_time_var(d_work) then
             time_var_symbols: cons(dname_work, time_var_symbols)
         )
@@ -186,25 +188,23 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
 )$
 
 
-print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen],
+print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen], /* TODO: change time_var_test to array of flags */
   for a_work in aux_def do (
     skip_gen: false,
     if length(time_var_test)=1 then (
       if time_var_test[1]=0 and is_time_var(a_work[2]) then
         skip_gen: true,
-      if time_var_test[1]=1 and does_depend_on_u(a_work[2]) then
+      if time_var_test[1]=1 and (not(is_time_var(a_work[2])) or does_depend_on_u(a_work[2])) then
         skip_gen: true,
-      if time_var_test[1]=2 and not(does_depend_on_u(a_work[2])) then
+      if time_var_test[1]=2 and (not(is_time_var(a_work[2])) or not(does_depend_on_u(a_work[2]))) then
         skip_gen: true
     ),
     if not(skip_gen) then (
-      if is_time_var(a_work[2]) then (
-        gentran(literal("// aux_def[", eval(i_work), "]", cr)),
-        if atom(float(a_work[2])) then
-          do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4)
-        else
-          do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4, 0)
-      )
+      gentran(literal("// aux_def[", eval(i_work), "]", cr)),
+      if atom(float(a_work[2])) then
+        do_assign(concat(aux_prefix, a_work[1]), a_work[2], 4)
+      else
+        do_assign(concat(aux_prefix, a_work[1]), a_work[2], 4, 0)
     ),
     i_work: i_work+1
   )
@@ -215,9 +215,9 @@ print_deriv([time_var_test]):= block([a_work, i_work:1],
     if length(time_var_test)<1 or time_var_test[1]=is_time_var(a_work[2]) then (
       gentran(literal("// aux_deriv[", eval(i_work), "]", cr)),
       if atom(float(a_work[2])) then
-        do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4)
+        do_assign(concat(daux_prefix, a_work[1]), a_work[2], 4)
       else
-        do_assign(concat('aux\-\>, a_work[1]), a_work[2], 4, 0)
+        do_assign(concat(daux_prefix, a_work[1]), a_work[2], 4, 0)
     ),
     i_work: i_work+1
   )
@@ -264,7 +264,11 @@ array_list: block([p_work, idxes, idx_work, maxidx, l_work: makelist(), aps: {},
 );
 
 params: append(scalar_list, array_list);
-
+params: sort(params, lambda([a, b], orderlessp(a[1], b[1])));
+block([i],
+  for i: 1 thru length(params) do
+    params[i][4]: i-1
+);
 
 
 do_replacements(e_work):= block([u, x, p_work],
@@ -421,24 +425,40 @@ Lxu:make_array(flonum, nx, nu);
 fillarray(Lxu, flatten(args(jacobian(args(jacobian([L], x))[1], u))));
 
 
-do_clamp(i_work):= block([hu, idx_work, sign_, lim],
-  if not(apply('freeof, endcons(h[i_work], listify(setdifference(setify(depends_on_u_aux), setify(u)))))) then
-    error("constaint (", h[i_work], ") may only depend directly on one input"),
-  
-  hu: scanmap('float, flatten(args(jacobian([h[i_work]], u)))),
-  if apply("+", map(lambda([x], if equal(x, 0) then 0 else 1), hu))#1 then
-    error("constaint (", h[i_work], ") may depend on only one input"),
-     
-  if not(equal(abs(apply("+", hu)), 1)) then
-    error("coefficient of input in constaint (", h[i_work], ") must be 1 or -1"),
+block([i_work],
+  h_: map(lambda([i_work], arrayapply(h, [i_work])), flatten(rest(arrayinfo(h), 2))),
+  nh: length(h_),
+  hu: make_array(flonum, nh, nu),
+  hu_: flatten(args(jacobian(h_, u))),
+  fillarray(hu, hu_),
+
+  hx: make_array(flonum, nh, nx),
+  hx_: flatten(args(jacobian(h_, x))),
+  fillarray(hx, hx_),
+
+  for i_work: 1 thru nh do (
+    hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+    if not(apply('freeof, endcons(h_[i_work], listify(setdifference(setify(depends_on_u_aux), setify(u)))))) then
+      error("constaint (", h_[i_work], ") may only depend directly on one input"),
       
-  idx_work: first(sublist_indices(hu, lambda([x], not(equal(x, 0))))),
-  sign_: apply("+", hu),
-  lim: h[i_work] - sign_*u[idx_work],
+    if apply("+", map(lambda([x], if equal(x, 0) then 0 else 1), hu_))#1 then
+      error("constaint (", h_[i_work], ") may depend on only one input. hu: ", hu_),
+     
+    if not(equal(abs(apply("+", hu_)), 1)) then
+      error("coefficient of input in constaint (", h_[i_work], ") must be 1 or -1")
+  )
+)$
+
+do_clamp(i_work):= block([hu_, idx_work, sign_, lim],
+  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+    
+  idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
+  sign_: apply("+", hu_),
+  lim: h_[i_work] - sign_*u[idx_work],
   if sign_>0 then
     lim: -lim,
 
-  gentran(literal("// constraint h[", eval(i_work), "]= ", eval(h[i_work]), cr)),
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
   do_assign('limit, lim, 4),
   
   if sign_>0 then
@@ -447,4 +467,34 @@ do_clamp(i_work):= block([hu, idx_work, sign_, lim],
     gentran(eval(if 'u[idx_work-1]<'limit then lrsetq(u[idx_work-1], limit))),
     
  gentran(literal(cr))
+);
+
+do_limits(vn, i_work):= block([hu_, idx_work, sign_, lim],
+  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+  idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
+  sign_: apply("+", hu_),
+  lim: h_[i_work] - sign_*u[idx_work],
+  if sign_>0 then
+    lim: -lim,
+
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
+  do_assign('limit, lim, 4),
+  
+  if sign_>0 then (
+    gentran(eval(if concat(vn, upper)[idx_work-1]>'limit then (eval(concat(vn, upper)[idx_work-1]): limit, lrsetq('upper_idx[idx_work-1], i_work-1))))
+  ) else (
+    gentran(eval(if concat(vn, lower)[idx_work-1]<'limit then (eval(concat(vn, lower)[idx_work-1]): limit, lrsetq('lower_idx[idx_work-1], i_work-1))))
+  ),  
+  
+  gentran(literal(cr))
+);
+
+do_hx(hx_name, h_sign_name, i_work, n_ind):= block([j_work, hx_],
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
+  for j_work: 0 thru nx-1 do
+    do_assign(apply("'", [arraymake(hx_name, [j_work])]), hx[i_work-1, j_work], n_ind),
+    
+  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),  
+  do_assign(apply("'", [arraymake(h_sign_name, [0])]), apply("+", hu_), n_ind)
+ 
 );

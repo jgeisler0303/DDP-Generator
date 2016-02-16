@@ -1,43 +1,12 @@
-if not(file_search(problem_file)) then
-  if not(file_search(sconcat(problem_file, ".mac"))) then
-    error("could not find file: ", problem_file)
-  else
-    problem_file: sconcat(problem_file, ".mac");
-
 batchload(problem_file);
-if not(member('compile_switches, values)) then compile_switches: "";
-
-problem_path: pathname_directory(problem_file);
-problem_name: pathname_name(problem_file);
-problem_ext: pathname_type(problem_file);
-
-if slength(problem_name)>6 and sequal(substring(problem_name, 1, 7), "optDef") then
-  problem_title: substring(problem_name, 7)
-else
-  problem_title: problem_name;
   
-problem_files_path: sconcat(problem_path, problem_title, "_gen_files/");
-  
-system("mkdir -p ", problem_files_path);
+system("mkdir -p ", target_dir);
 
 load("gentran");
 
 batchload("genenerator_main.mac");
 
-gentranin("iLQG_problem.tem", [openw(sconcat(problem_files_path, "iLQG_problem.h"))]);
-gentranin("iLQG_func.tem", [openw(sconcat(problem_files_path, "iLQG_func.c"))]);
+gentranin("iLQG_problem.tem", [openw(sconcat(target_dir, "iLQG_problem.h"))]);
+gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "iLQG_func.c"))]);
 
 
-compile_com: sconcat("mkoctfile --mex -DPRNT=mexPrintf ", compile_switches, " -I. -I", problem_files_path, " -o ", problem_path, "iLQG", problem_title, " iLQG.c iLQG_mex.c line_search.c back_pass.c matMult.c boxQP.c cholesky.c printMat.c ", problem_files_path, "iLQG_func.c");
-
-out_file: openw(sconcat(problem_files_path, "recompile.txt"));
-printf(out_file, compile_com);
-close(out_file);
-
-res: system(sconcat(compile_com, " 2>", problem_files_path, "err.log"));
-err_file: openr(sconcat(problem_files_path, "err.log"));
-if flength(err_file)>0 then
-  print("Errors occured during compilation")
-else
-  print("compilation successful");
-close(err_file);

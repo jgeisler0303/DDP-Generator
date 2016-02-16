@@ -14,6 +14,10 @@
 #include <stdlib.h>
 
 #include "mex.h"
+#ifndef  HAVE_OCTAVE
+#include "matrix.h"
+#endif
+
 #include "iLQG.h"
 #include "line_search.h"
 #include "back_pass.h"

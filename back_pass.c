@@ -12,9 +12,10 @@
 #include <string.h>
 #include <math.h>
 
-// uncomment this for use in MATLAB
-// #include "matrix.h"
 #include "mex.h"
+#ifndef  HAVE_OCTAVE
+#include "matrix.h"
+#endif
 
 #include "back_pass.h"
 #include "iLQG.h"
@@ -36,7 +37,7 @@
    
 int back_pass(tOptSet *o) {
     double d1, g_norm_i, g_norm_max, g_norm_sum;
-    int k, i_, j_, k_, i_free, k_free, m_free, qpRes;
+    int k, i_, j_, k_, l_, i_free, j_free, k_free, m_free, qpRes;
     int N= o->n_hor;
     double invHfree[sizeofQuu], L[sizeofQuu];
     double lower[N_U], upper[N_U];
@@ -175,18 +176,32 @@ int back_pass(tOptSet *o) {
         memset(t->L, 0, sizeof(double)*N_U*N_X);
         for(i_= 0, i_free= 0; i_<N_U; i_++) {
             if(!is_clamped[i_]) {
-                for(j_= 0; j_<N_X; j_++) {
-                    for(k_= 0, k_free= 0; k_<N_U; k_++) {
-                        if(!is_clamped[k_]) {
-                          t->L[MAT_IDX(i_, j_, N_U)]-= invHfree[SYMTRI_MAT_IDX(i_free, k_free)] * Qxu_reg[MAT_IDX(j_, k_, N_X)];
-                          k_free++;
+                for(j_= 0, j_free= 0; j_<N_U; j_++) {
+                    if(!is_clamped[j_]) {
+                        for(l_= 0; l_<N_X; l_++)
+                            t->L[MAT_IDX(i_, l_, N_U)]-= invHfree[SYMTRI_MAT_IDX(i_free, j_free)] * Qxu_reg[MAT_IDX(l_, j_, N_X)];
+                        
+                        j_free++;
+                    } else {
+                        d1= 0.0;
+                        for(k_= 0, k_free= 0; k_<N_U; k_++) {
+                            if(!is_clamped[k_]) {
+                                d1-= invHfree[SYMTRI_MAT_IDX(i_free, k_free)] * QuuF[SYMTRI_MAT_IDX(k_, j_)];
+                                k_free++;
+                            }
                         }
+                        for(l_= 0; l_<N_X; l_++)
+                            t->L[MAT_IDX(i_, l_, N_U)]-= d1*((is_clamped[j_]==1)? t->lower_sign[j_]*t->lower_hx[MAT_IDX(l_, j_, N_X)]: t->upper_sign[j_]*t->upper_hx[MAT_IDX(l_, j_, N_X)]);
                     }
                 }
                 i_free++;
+            } else {
+                for(l_= 0; l_<N_X; l_++)
+                    t->L[MAT_IDX(i_, l_, N_U)]-= (is_clamped[i_]==1)? t->lower_sign[i_]*t->lower_hx[MAT_IDX(l_, i_, N_X)]: t->upper_sign[i_]*t->upper_hx[MAT_IDX(l_, i_, N_X)];
             }
         }
-
+        
+        
         // dV          = dV + [k_i'*Qu  .5*k_i'*Quu*k_i];
         for(i_= 0; i_<N_U; i_++) {
             o->dV[0]+= Qu[i_]*t->l[i_];
