@@ -5,6 +5,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "mex.h"
 #ifndef  HAVE_OCTAVE
@@ -27,7 +28,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     const mxArray *mxParams, *mxOptParam, *mxParam;
     const char *err_msg, *fname;
     clock_t begin, end;
-
 
     if(nrhs!=4) { mexErrMsgIdAndTxt("MATLAB:minrhs", "wrong number of arguments (expected: x0, u_nom, params, opt_params)"); return; }
     if(nlhs!=4) { mexErrMsgIdAndTxt("MATLAB:minlhs", "wrong number of return values (expected: success, x_new, u_new, new_cost)"); return; }
@@ -124,7 +124,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             success[0]= iLQG(&o);
             end = clock();
             mexPrintf("Time for iLQG: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
-            
             for(k= 0; k<N; k++)
                 for(i= 0; i<N_X; i++)
                     x_new[MAT_IDX(i, k, N_X)]= o.trajectory[k].x[i];

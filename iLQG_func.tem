@@ -100,12 +100,13 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
 int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
     int i, k, j;
     double dx;
-    csum[0]= 0.0;
     double *x0= o->x0;
     int N= o->n_hor;
     double **params= o->p;
     trajEl_t *t= o->trajectory;
     
+    csum[0]= 0.0;
+
     for(i= 0; i<N_X; i++) c->x[i]= x0[i]; // ic
 
     for(k= 0; k<N; k++, t++, c++) {

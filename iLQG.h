@@ -6,7 +6,6 @@
 #endif
 
 #include "iLQG_problem.h"
-#include <pthread.h>
 
 #define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, NULL}
 
@@ -16,6 +15,9 @@
 
 #ifndef MULTI_THREADED
 #define MULTI_THREADED 0
+#endif
+#if MULTI_THREADED  
+#include <pthread.h>
 #endif
 
 #ifndef NUMBER_OF_THREADS

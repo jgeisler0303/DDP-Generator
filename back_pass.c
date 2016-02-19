@@ -40,10 +40,9 @@ int back_pass(tOptSet *o) {
     int k, i_, j_, k_, l_, i_free, j_free, k_free, m_free, qpRes;
     int N= o->n_hor;
     double invHfree[sizeofQuu], L[sizeofQuu];
-    double lower[N_U], upper[N_U];
     double R[sizeofQuu], grad[N_U], grad_clamped[N_U], search[N_U];
     int is_clamped[N_U];
-    double Vx[N_X], Vxx[sizeofQxx], Vxx_reg[sizeofQxx], Qx[N_X], Qu[N_U], Qxx[sizeofQxx];
+    double Vx[N_X], Vxx[sizeofQxx], Qx[N_X], Qu[N_U], Qxx[sizeofQxx];
     double Qxu_reg[sizeofQxu], Qxu[sizeofQxu];
     double QuuF[sizeofQuu], Quu[sizeofQuu];
     double dummy[N_X*N_X]; // TODO: make sure enough memory here

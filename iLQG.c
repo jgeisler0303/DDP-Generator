@@ -43,7 +43,7 @@ int bp_result;
 #endif
 
 void printParams(double **p, int k) {
-    int i, k_;
+    int i;
     for(i=0; i<n_params; i++) {
         if(paramdesc[i]->size==-1)
             PRNT("%s[k]= %g\n", paramdesc[i]->name, p[i][k]);
@@ -66,7 +66,7 @@ void standard_parameters(tOptSet *o) {
     o->lambdaMax= 1e10;
     o->lambdaMin= 1e-6;
     o->regType= 1;
-    o->zMin= 0.5;
+    o->zMin= 0.0;
     o->debug_level= 2;
 }
 
@@ -175,9 +175,10 @@ int iLQG(tOptSet *o) {
     int iter, diverge, backPassDone, fwdPassDone;
     int newDeriv;
     double dlambda= o->dlambdaInit;
+#if MULTI_THREADED  
     pthread_t derivs_thread;
     pthread_t bp_thread;
-    
+#endif    
     o->lambda= o->lambdaInit;
     newDeriv= 1;
     
