@@ -1,6 +1,5 @@
 <<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
 #include "iLQG.h"
-#include "iLQG_problem.h"
 #include "matMult.h"
 
 <<tri_matrix_mode: true;>>
@@ -61,8 +60,8 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     for(i= 0; i<N_U; i++) {
         lower_idx[i]= -1;
         upper_idx[i]= -1;
-        t->lower[i]= -HUGE_VAL;
-        t->upper[i]= HUGE_VAL;
+        t->lower[i]= -INF;
+        t->upper[i]= INF;
     }        
     
 <<block([i], for i: 1 thru nh do do_limits('t\-\>, i))>>
@@ -110,10 +109,9 @@ int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
     for(i= 0; i<N_X; i++) c->x[i]= x0[i]; // ic
 
     for(k= 0; k<N; k++, t++, c++) {
-        for(j= 0; j<N_U; j++)
-            c->u[j]= t->u[j] + t->l[j]*alpha;
-        
         if(alpha) {
+            for(j= 0; j<N_U; j++)
+                c->u[j]= t->u[j] + t->l[j]*alpha;
             for(i= 0; i<N_X; i++) {
                 dx= c->x[i] - t->x[i];
                 
@@ -121,6 +119,9 @@ int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
                     c->u[j]+= t->L[MAT_IDX(j, i, N_U)]*dx;
                 }
             }
+        } else {
+            for(j= 0; j<N_U; j++)
+                c->u[j]= t->u[j];
         }
         
         if(!calcXVariableAux(c, k, params))
@@ -134,15 +135,17 @@ int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
             return 0;
         
         csum[0]+= c->c= ddpJ(c, k, params, N);        
-        if(isnan(c->c) || !finite(c->c))
+        if(isNANorINF(c->c))
             return 0;
     }
+    for(j= 0; j<N_U; j++)
+        c->u[j]= t->u[j];
     
     if(!calcXVariableAux(c, N, params))
         return 0;
         
     csum[0]+= c->c= ddpJ(c, N, params, N);
-    if(isnan(c->c) || !finite(c->c))
+    if(isNANorINF(c->c))
         return 0;
         
     return 1;
@@ -245,7 +248,7 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
 }
 
 int init_trajectory(trajEl_t *t, tOptSet *o) {
-    int k;
+    int k, i;
     double **p= o->p;
 
     for(k= 0; k<=o->n_hor; k++, t++) {
@@ -253,7 +256,11 @@ int init_trajectory(trajEl_t *t, tOptSet *o) {
 
 <<print_deriv(false);>>
 
-        if(k==o->n_hor) break;
+        if(k==o->n_hor) {
+            for(i= 0; i<N_U; i++)
+                t->u[i]= (t-1)->u[i];
+            break;
+        }
         
 <<print_deriv(false);>>
 

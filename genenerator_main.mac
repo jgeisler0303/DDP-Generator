@@ -296,7 +296,7 @@ do_assign(n_work, e_work, n_ind, [testdef]):= block([ret], (
   gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
   if length(testdef)>0 and check_nan_inf_mode then (
     ret: testdef[1],
-    gentran(eval(if 'mxIsNaN(n_work) or 'mxIsInf(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " is nan or inf: %g\\n\""), 'k, n_work), return(ret))))
+    gentran(eval(if 'isNANorINF(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " is nan or inf: %g\\n\""), 'k, n_work), return(ret))))
   )
 ));
 

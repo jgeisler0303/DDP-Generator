@@ -8,6 +8,11 @@
 #include "matrix.h"
 #endif
 
+#define isNANorINF(v) (mxIsNaN(v) || mxIsInf(v))
+#define INF mxGetInf()
+// #define isNANorINF(v) (isnan(v) || !finite(v))
+// #define INF HUGE_VAL
+
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
 

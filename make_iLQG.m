@@ -68,6 +68,7 @@ if is_matlab
 else
     compile_cmd= 'mex ';    
     compile_opt= ['-DPRNT=mexPrintf ', compile_switches, ' -I. -I', target_dir, filesep, ' -output ', target_file];
+    clear mex
 end
 
 compile_files{1}= 'iLQG.c';
