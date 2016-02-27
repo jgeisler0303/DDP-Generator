@@ -26,8 +26,6 @@ if not(member('L, values)) then
 if listp(L) then 
   error("running cost L must not be a_work list");
   
-if not(member(h, arrays)) then
-  error("array of input limits not defined");
  
 gentranlang(c)$
 off('float)$
@@ -47,7 +45,8 @@ check_nan_inf_mode: true;
 time_var_symbols: append(x, u /*, [k]*/);
 is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
 
-allvars: setdifference(setify(append(listofvars(listarray(h)), listofvars(listarray(f)),listofvars(F), listofvars(L))), {k});
+if member(h, arrays) then h_: listarray(h) else h_: [];
+allvars: setdifference(setify(append(listofvars(h_), listofvars(listarray(f)),listofvars(F), listofvars(L))), {k});
 allparams: setdifference(setdifference(allvars, setify(x)), setify(u));
 arrayparams: subset(allparams, subvarp);
 
@@ -296,7 +295,7 @@ do_assign(n_work, e_work, n_ind, [testdef]):= block([ret], (
   gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
   if length(testdef)>0 and check_nan_inf_mode then (
     ret: testdef[1],
-    gentran(eval(if 'isNANorINF(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " is nan or inf: %g\\n\""), 'k, n_work), return(ret))))
+    gentran(eval(if 'isNANorINF(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " in line %d is nan or inf: %g\\n\""), 'k, '__LINE__, n_work), return(ret))))
   )
 ));
 
@@ -424,7 +423,7 @@ fillarray(Luu, flatten(args(hessian(L, u))));
 Lxu:make_array(flonum, nx, nu);
 fillarray(Lxu, flatten(args(jacobian(args(jacobian([L], x))[1], u))));
 
-
+if member(h, arrays) then
 block([i_work],
   h_: map(lambda([i_work], arrayapply(h, [i_work])), flatten(rest(arrayinfo(h), 2))),
   nh: length(h_),
@@ -447,7 +446,8 @@ block([i_work],
     if not(equal(abs(apply("+", hu_)), 1)) then
       error("coefficient of input in constaint (", h_[i_work], ") must be 1 or -1")
   )
-)$
+)
+else nh: 0$
 
 do_clamp(i_work):= block([hu_, idx_work, sign_, lim],
   hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),

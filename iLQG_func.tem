@@ -22,17 +22,17 @@ static int calcAuxDeriv(trajEl_t *t, int k, double **p);
 static int bp_derivsF(trajEl_t *t, int k, double **p);
 static int bp_derivsL(trajEl_t *t, int k, double **p);
 
-static double ddpJ(trajEl_t *t, int k, double **p, int N) {
+static int ddpJ(double *J, trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x;
     const double *u= t->u;
-    double t0;
     
     if(k<N) {
-        <<do_assign(t0, L, 3*4)>>
+        <<do_assign(J[0], L, 3*4, 0)>>
     } else {
-        <<do_assign(t0, F, 3*4)>>
+        <<do_assign(J[0], F, 3*4, 0)>>
     }
-    return t0;
+    
+    return 1;
 }
 
 static int ddpf(double x_next[], trajEl_t *t, int k, double **p, int N) {
@@ -124,29 +124,25 @@ int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
                 c->u[j]= t->u[j];
         }
         
-        if(!calcXVariableAux(c, k, params))
-            return 0;
+        if(!calcXVariableAux(c, k, params)) return 0;
         
         clampU(c->u, c, k, params, N);
-        if(!calcXUVariableAux(c, k, params))
-            return 0;
+        if(!calcXUVariableAux(c, k, params)) return 0;
         
-        if(!ddpf((c+1)->x, c, k, params, N))
-            return 0;
+        if(!ddpf((c+1)->x, c, k, params, N)) return 0;
         
-        csum[0]+= c->c= ddpJ(c, k, params, N);        
-        if(isNANorINF(c->c))
-            return 0;
+        if(!ddpJ(&c->c, c, k, params, N)) return 0;
+        csum[0]+= c->c;        
     }
     for(j= 0; j<N_U; j++)
         c->u[j]= t->u[j];
     
-    if(!calcXVariableAux(c, N, params))
-        return 0;
+    if(!calcXVariableAux(c, N, params)) return 0;
         
-    csum[0]+= c->c= ddpJ(c, N, params, N);
-    if(isNANorINF(c->c))
-        return 0;
+    if(!calcXUVariableAux(c, N, params)) return 0;
+        
+    if(!ddpJ(&c->c, c, N, params, N))  return 0;
+    csum[0]+= c->c;
         
     return 1;
 }
