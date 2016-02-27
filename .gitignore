@@ -1,3 +1,5 @@
+.directory
+
 # Object files
 *.o
 *.ko
@@ -30,3 +32,12 @@
 
 # Debug files
 *.dSYM/
+
+# generated code
+*_gen_files/
+*.mex
+*.mexw32
+*.mexw64
+
+# backup files
+*~
