@@ -45,7 +45,7 @@ int back_pass(tOptSet *o) {
     double Vx[N_X], Vxx[sizeofQxx], Qx[N_X], Qu[N_U], Qxx[sizeofQxx];
     double Qxu_reg[sizeofQxu], Qxu[sizeofQxu];
     double QuuF[sizeofQuu], Quu[sizeofQuu];
-    double dummy[N_X*N_X]; // TODO: make sure enough memory here
+    double dummy[N_X*N_X];
     trajEl_t *t= o->trajectory + N;
     
     g_norm_sum= 0.0;

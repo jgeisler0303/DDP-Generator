@@ -1,6 +1,6 @@
-setenv('MAXIMA', 'path to maxima');
-addpath('../..');
-make_iLQG('optDefBrachi', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=0', 1)
+% setenv('MAXIMA', 'path to maxima');
+% addpath('../..');
+% make_iLQG('optDefBrachi', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=0', 1)
 
 
 %% parameters
@@ -8,7 +8,10 @@ p.g= 9.81;
 p.yf= -4;
 p.w= 100;
 x0= [-eps];
+Op= [];
 Op.max_iter= 20;
+Op.w_pen_init= 40;
+% Op.w_pen_fact= 1;
 
 clf
 hold on

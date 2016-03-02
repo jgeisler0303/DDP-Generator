@@ -68,6 +68,11 @@ void standard_parameters(tOptSet *o) {
     o->regType= 1;
     o->zMin= 0.0;
     o->debug_level= 2;
+    o->w_pen_init= 1.0;
+    o->w_pen_max= INF;
+    o->w_pen_fact1= 4.0; // 4...10 Bertsekas p. 123
+    o->w_pen_fact2= 2.0;
+    o->gamma= 0.25; // Bertsekas p. 123
 }
 
 char setOptParamErr_not_scalar[]= "parameter must be scalar";
@@ -75,6 +80,7 @@ char setOptParamErr_alpha_range[]= "all alpha must be in the range [1.0..0.0)";
 char setOptParamErr_alpha_monotonic[]= "all alpha must be monotonically decreasing";
 char setOptParamErr_not_pos[]= "parameter must be positive";
 char setOptParamErr_lt_one[]= "parameter must be > 1";
+char setOptParamErr_gt_one[]= "parameter must be < 1";
 char setOptParamErr_range_one_two[]= "parameter must be in range [1..2]";
 char setOptParamErr_range_zero_one[]= "parameter must be in range [0..1)";
 char setOptParamErr_debug_level_range[]= "parameter must be in range [0..6]";
@@ -158,10 +164,42 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<0.0 || value[0]>6.0)
             return setOptParamErr_debug_level_range;
         o->debug_level= value[0];
+    } else if(strcmp(name, "w_pen_init")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->w_pen_init= value[0];
+    } else if(strcmp(name, "w_pen_max")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->w_pen_max= value[0];
+    } else if(strcmp(name, "w_pen_fact1")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<1.0)
+            return setOptParamErr_lt_one;
+        o->w_pen_fact1= value[0];
+    } else if(strcmp(name, "w_pen_fact2")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<1.0)
+            return setOptParamErr_lt_one;
+        o->w_pen_fact2= value[0];
+    } else if(strcmp(name, "gamma")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]>1.0)
+            return setOptParamErr_gt_one;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->gamma= value[0];
     } else {
         return setOptParamErr_no_such_parameter;
     }
-    
+
     return NULL;
 }
 
@@ -180,7 +218,10 @@ int iLQG(tOptSet *o) {
     pthread_t bp_thread;
 #endif    
     o->lambda= o->lambdaInit;
+    o->w_pen= o->w_pen_init;
     newDeriv= 1;
+    
+    update_multipliers(o, 1);
     
     for(iter= 0; iter < o->max_iter; iter++) {
         // ====== STEP 1: differentiate dynamics and cost along new trajectory: integrated in back_pass
@@ -256,11 +297,12 @@ int iLQG(tOptSet *o) {
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPassDone) {
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda)));
+                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen: %-9.3g\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen));
             
             // decrease lambda
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
             o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
+
             
             // accept changes
             makeCandidateNominal(o, 0);
@@ -275,14 +317,24 @@ int iLQG(tOptSet *o) {
             
                 break;
             }
+            // adapt w_pen
+            // TODO: add check for sufficient decrease of gradient
+            update_multipliers(o, 0);
+            forward_pass(o->trajectory, o, 0.0, &o->cost, 1);
+
         } else { // no cost improvement
             // increase lambda
             dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
             o->lambda= max(o->lambda * dlambda, o->lambdaMin);
+
+            if(o->w_pen_fact2>1.0) {
+                o->w_pen= min(o->w_pen_max, o->w_pen*o->w_pen_fact2);
+                forward_pass(o->trajectory, o, 0.0, &o->cost, 1);
+            }
             
             // print status
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  REJECTED    expected: %-11.3g    actual: %-11.3g    log10lam: %3.1f\n", iter+1, o->expected , o->dcost, log10(o->lambda)));
+                TRACE(("iter: %-3d  REJECTED    expected: %-11.3g    actual: %-11.3g    log10lam: %3.1f w_pen: %-9.3g\n", iter+1, o->expected , o->dcost, log10(o->lambda), o->w_pen));
             
             // terminate ?
             if(o->lambda > o->lambdaMax) {
@@ -311,7 +363,6 @@ int iLQG(tOptSet *o) {
 }
 
 void makeCandidateNominal(tOptSet *o, int idx) {
-    // TODO check for valid idx
     trajEl_t *temp;
     temp= o->trajectory;
     o->trajectory= o->candidates[idx];

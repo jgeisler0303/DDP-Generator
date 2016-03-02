@@ -14,11 +14,14 @@ int n_vars= 0;
 tParamDesc *paramdesc[]= {<<block([i], for i:1 thru length(params) do (gentran(literal(&, "p_name", eval(i))), if i#length(params) then gentran(literal(", "))))$>>};
 
 <<for a_work in aux_def do gentran(literal("#define ", eval(concat(aux_prefix, a_work[1])), " t->", eval(a_work[1]), cr))$>>
+
 <<for a_work in aux_deriv do gentran(literal("#define ", eval(concat(daux_prefix, a_work[1])), " t->", eval(a_work[1]), cr))$>>
 
-static int calcXVariableAux(trajEl_t *t, int k, double **p);
-static int calcXUVariableAux(trajEl_t *t, int k, double **p);
-static int calcAuxDeriv(trajEl_t *t, int k, double **p);
+<<block([i], for i: 1 thru n_hfe do gentran(literal("#define mu_fe_", eval(i), " m->mu_fe[", eval(i-1), "]", cr)))$>>
+
+static int calcXVariableAux(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o);
+static int calcXUVariableAux(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o);
+static int calcAuxDeriv(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o);
 static int bp_derivsF(trajEl_t *t, int k, double **p);
 static int bp_derivsL(trajEl_t *t, int k, double **p);
 
@@ -96,50 +99,56 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     }
 }
 
-int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum) {
+int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum, int cost_only) {
     int i, k, j;
     double dx;
     double *x0= o->x0;
     int N= o->n_hor;
     double **params= o->p;
     trajEl_t *t= o->trajectory;
+    multipliersEl_t *m= o->multipliers;
     
     csum[0]= 0.0;
 
-    for(i= 0; i<N_X; i++) c->x[i]= x0[i]; // ic
+    if(!cost_only)
+        for(i= 0; i<N_X; i++) c->x[i]= x0[i]; // ic
 
-    for(k= 0; k<N; k++, t++, c++) {
-        if(alpha) {
-            for(j= 0; j<N_U; j++)
-                c->u[j]= t->u[j] + t->l[j]*alpha;
-            for(i= 0; i<N_X; i++) {
-                dx= c->x[i] - t->x[i];
-                
-                for(j= 0; j<N_U; j++) {
-                    c->u[j]+= t->L[MAT_IDX(j, i, N_U)]*dx;
+    for(k= 0; k<N; k++, t++, c++, m++) {
+        if(!cost_only) {
+            if(alpha) {
+                for(j= 0; j<N_U; j++)
+                    c->u[j]= t->u[j] + t->l[j]*alpha;
+                for(i= 0; i<N_X; i++) {
+                    dx= c->x[i] - t->x[i];
+                    
+                    for(j= 0; j<N_U; j++) {
+                        c->u[j]+= t->L[MAT_IDX(j, i, N_U)]*dx;
+                    }
                 }
+            } else {
+                for(j= 0; j<N_U; j++)
+                    c->u[j]= t->u[j];
             }
-        } else {
-            for(j= 0; j<N_U; j++)
-                c->u[j]= t->u[j];
-        }
+        }        
+        if(!calcXVariableAux(c, m, k, o)) return 0;
         
-        if(!calcXVariableAux(c, k, params)) return 0;
+        if(!cost_only)
+            clampU(c->u, c, k, params, N);
+        if(!calcXUVariableAux(c, m, k, o)) return 0;
         
-        clampU(c->u, c, k, params, N);
-        if(!calcXUVariableAux(c, k, params)) return 0;
-        
-        if(!ddpf((c+1)->x, c, k, params, N)) return 0;
+        if(!cost_only)
+            if(!ddpf((c+1)->x, c, k, params, N)) return 0;
         
         if(!ddpJ(&c->c, c, k, params, N)) return 0;
         csum[0]+= c->c;        
     }
-    for(j= 0; j<N_U; j++)
-        c->u[j]= t->u[j];
+    if(!cost_only)
+        for(j= 0; j<N_U; j++)
+            c->u[j]= t->u[j];
     
-    if(!calcXVariableAux(c, N, params)) return 0;
+    if(!calcXVariableAux(c, m, N, o)) return 0;
         
-    if(!calcXUVariableAux(c, N, params)) return 0;
+    if(!calcXUVariableAux(c, m, N, o)) return 0;
         
     if(!ddpJ(&c->c, c, N, params, N))  return 0;
     csum[0]+= c->c;
@@ -151,8 +160,9 @@ int calc_derivs(tOptSet *o) {
     int k, i_;
     int N= o->n_hor;
     trajEl_t *t= o->trajectory + N;
+    multipliersEl_t *m= o->multipliers + N;
 
-    if(!calcAuxDeriv(t, N, o->p)) return 0;
+    if(!calcAuxDeriv(t, m, N, o)) return 0;
     if(!bp_derivsF(t, N, o->p)) return 0;
     
 #if MULTI_THREADED   
@@ -163,8 +173,9 @@ int calc_derivs(tOptSet *o) {
 #endif
 
     t--;
-    for(k= N-1; k>=0; k--, t--) {
-        if(!calcAuxDeriv(t, k, o->p)) return 0;
+    m--;
+    for(k= N-1; k>=0; k--, t--, m--) {
+        if(!calcAuxDeriv(t, m, k, o)) return 0;
         if(!bp_derivsL(t, k, o->p)) return 0;
         
         limitsU(t, k, o->p, N);
@@ -179,24 +190,30 @@ int calc_derivs(tOptSet *o) {
     return 1;
 }
 
-static int calcXVariableAux(trajEl_t *t, int k, double **p) {
+static int calcXVariableAux(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o) {
     const double *x= t->x;
+    double **p= o->p;
+    const double w_pen= o->w_pen;
     
 <<print_aux(1);>>
     return 1;
 } 
 
-static int calcXUVariableAux(trajEl_t *t, int k, double **p) {
+static int calcXUVariableAux(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o) {
     const double *x= t->x;
     const double *u= t->u;
+    double **p= o->p;
+    const double w_pen= o->w_pen;
     
 <<print_aux(2);>>
     return 1;
 } 
 
-static int calcAuxDeriv(trajEl_t *t, int k, double **p) {
+static int calcAuxDeriv(trajEl_t *t, multipliersEl_t *m, int k, tOptSet *o) {
     const double *x= t->x;
     const double *u= t->u;
+    const double w_pen= o->w_pen;
+    double **p= o->p;
     
 <<print_deriv(true);>>
     return 1;
@@ -291,6 +308,62 @@ int init_trajectory(trajEl_t *t, tOptSet *o) {
 
     return 1;
 }
+
+int init_multipliers(tOptSet *o) {
+    multipliersEl_t *m= o->multipliers;
+    int k, i;
+
+    for(k= 0; k<=o->n_hor; k++, m++) {
+<<if  n_hfe#0 then gentran(literal("        for(i= 0\; i<", eval(n_hfe), "\; i++) {", cr))>>
+            m->mu_fe[i]= 0.0;
+            m->last_hfe[i]= 0.0;
+        }
+    }
+    
+    return 1;
+}
+
+int init_opt(tOptSet *o) {
+    int i;
+    
+    if(!init_trajectory(o->trajectory, o)) return 0;
+    for(i= 0; i<NUMBER_OF_THREADS; i++)
+        if(!init_trajectory(o->candidates[0], o)) return 0;
+        
+    if(!init_multipliers(o)) return 0;
+    
+    return 1;
+}
+
+int update_multipliers(tOptSet *o, int init) {
+    trajEl_t *t= o->trajectory + o->n_hor;
+    multipliersEl_t *m= o->multipliers + o->n_hor;
+    const double *x;
+    const double *u;
+    const double w_pen= o->w_pen;
+    double **p= o->p;
+    int increase_pen= 0;
+    int k= o->n_hor;
+
+    x= t->x;
+    u= t->u;
+
+<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfe do (
+  gentran(if fabs(eval(do_replacements(concat('hfe_, i))))>o\-\>gamma*fabs(m\-\>last_hfe[eval(i-1)]) then increase_pen: 1),
+  ?ccurrind\*: 4,
+  gentran(lrsetq(m\-\>last_hfe[i-1], do_replacements(concat('hfe_, i)))),
+  gentran(literal(cr))
+))>>
+
+    if(!init && increase_pen)
+        o->w_pen= min(o->w_pen_max, o->w_pen*o->w_pen_fact1);
+
+    if(init) return 1;
+<<block([i], for i: 1 thru n_hfe do do_assign(concat(mu_fe_, i), mu_fe_next[i], 4, 0))>>
+
+    return 1;
+}
+
 
 int get_g_size() {
 <<if member(g, arrays) then gentran(literal("return(", eval(length(flatten(rest(arrayinfo(g), 2)))), ")\;", cr)) else gentran(return(0))>>

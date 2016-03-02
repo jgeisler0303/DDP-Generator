@@ -37,7 +37,7 @@ int line_search(tOptSet *o, int iter) {
     for(i= 0; i < o->n_alpha; i++) {
         alpha= o->alpha[i];
         
-        success= forward_pass(o->candidates[0], o, alpha, &cnew);
+        success= forward_pass(o->candidates[0], o, alpha, &cnew, 0);
         if(success) {
             dcost= o->cost - cnew;
             expected= -alpha*(o->dV[0] + alpha*o->dV[1]);

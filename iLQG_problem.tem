@@ -50,4 +50,9 @@ typedef struct {
 <<block([a], for a in aux_deriv do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
 } trajEl_t;
 
+typedef struct {
+<<if n_hfe#0 then gentran(literal("    double mu_fe[", eval(n_hfe), "]\;", cr))>>
+<<if n_hfe#0 then gentran(literal("    double last_hfe[", eval(n_hfe), "]\;", cr))>>
+} multipliersEl_t;
+
 #endif // ILQG_PROBLEM_H

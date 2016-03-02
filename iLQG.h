@@ -7,7 +7,7 @@
 
 #include "iLQG_problem.h"
 
-#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, NULL}
+#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL}
 
 #ifndef PRNT
 #define PRNT printf
@@ -57,18 +57,28 @@ typedef struct optSet {
     double *log_cost;
     double dV[2];
     
+    double w_pen;
+    double w_pen_max;
+    double w_pen_init;
+    double w_pen_fact1;
+    double w_pen_fact2;
+    double gamma;
+    
     trajEl_t *trajectory;
-    trajEl_t *candidates[NUMBER_OF_THREADS];    
+    trajEl_t *candidates[NUMBER_OF_THREADS]; 
+    
+    multipliersEl_t *multipliers;
 } tOptSet;
 
 void printParams(double **p, int k);
 void standard_parameters(tOptSet *o);
 int iLQG(tOptSet *o);
 char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
-int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum);
+int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(tOptSet *o);
-int init_trajectory(trajEl_t *t, tOptSet *o);
+int init_opt(tOptSet *o);
+int update_multipliers(tOptSet *o, int init);
 int get_g_size();
 int calcG(double g[], trajEl_t *t, int k, double *p[]);
 

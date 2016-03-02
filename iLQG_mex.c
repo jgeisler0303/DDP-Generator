@@ -100,6 +100,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // aux
     o.trajectory= mxMalloc(sizeof(trajEl_t)*N);
     o.candidates[0]= mxMalloc(sizeof(trajEl_t)*N);
+    o.multipliers= mxMalloc(sizeof(multipliersEl_t)*N);
 //     mexPrintf("sizeof trajEl_t: %d\n", sizeof(trajEl_t));
 
     for(k= 0; k<N-1; k++)
@@ -108,12 +109,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     
      mexPrintf("Set const vars\n");
-    if(!init_trajectory(o.trajectory, &o) || !init_trajectory(o.candidates[0], &o)) {
+    if(!init_opt(&o)) {
         success[0]= 0;
         new_cost[0]= o.cost;
     } else {
         mexPrintf("Initializing trajectory\n");
-        if(!forward_pass(o.candidates[0], &o, 0.0, &o.cost)) {
+        if(!forward_pass(o.candidates[0], &o, 0.0, &o.cost, 0)) {
             success[0]= 0;
             new_cost[0]= o.cost;
         } else {  

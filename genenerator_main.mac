@@ -45,8 +45,27 @@ check_nan_inf_mode: true;
 time_var_symbols: append(x, u /*, [k]*/);
 is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
 
-if member(h, arrays) then h_: listarray(h) else h_: [];
-allvars: setdifference(setify(append(listofvars(h_), listofvars(listarray(f)),listofvars(F), listofvars(L))), {k});
+
+if member(hfe, arrays) then block([i_work],
+  /* TODO: add check that hfe does not depend on u */
+  hfe_: map(lambda([i_work], arrayapply(hfe, [i_work])), flatten(rest(arrayinfo(hfe), 2))),
+  n_hfe: length(hfe_),
+  for i_work: 1 thru n_hfe do (
+    concat('hfe_, i_work):: hfe_[i_work],
+    concat('pfe_, i_work):: concat('mu_fe_, i_work) * concat('hfe_, i_work) + 0.5*w_pen*(concat('hfe_, i_work))^2,
+    mu_fe_next[i_work]: concat('mu_fe_, i_work) + w_pen*concat('hfe_, i_work),
+    F: F + concat('pfe_, i_work) /* TODO: handle auxes used only by hfe separately */
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hfe_all: makelist(concat('mu_fe_, i_work), i_work, 1, n_hfe),
+  time_var_symbols: append(time_var_symbols, mu_hfe_all)
+) else
+  n_hfe: 0;
+
+allvars: append(listofvars(listarray(f)),listofvars(F), listofvars(L));
+if member(h, arrays) then allvars: append(allvars, listarray(h));
+allvars: setdifference(setify(allvars), {k});
 allparams: setdifference(setdifference(allvars, setify(x)), setify(u));
 arrayparams: subset(allparams, subvarp);
 
@@ -117,42 +136,17 @@ block([a_work],
     depends(a_work, sort(listify(get_xu_dep(a_work))))
 )$
 
-/* define 1st and 2nd derivatives */ 
-block([a_work, d1_work, d2_work, d_work, d_ab],
-  for a_work in aux_vars do (
-    for d1_work in get_dependencies(a_work) do (
-      d_work: diff(ev(a_work), d1_work),
-      if d_work=0 then
-        apply(gradef, [a_work, d1_work, 0])
-      else
-        apply(gradef, [a_work, d1_work, concat('diff_, a_work, '_, d1_work)]),
-      /* print([a_work, d1_work, concat('diff_, a_work, '_, d1_work)]),*/
-      for d2_work in get_dependencies(a_work) do (
-        d_work: diff(d_work, d2_work),
-        if d_work=0 then
-          apply(gradef, [concat('diff_, a_work, '_, d1_work), d2_work, 0])
-        else (
-          d_ab: sort([d1_work, d2_work]),
-          apply(gradef, [concat('diff_, a_work, '_, d1_work), d2_work, concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2])])
-        )
-      )
-    )
-  )
-)$
-
-
 aux_def: [];
 aux_deriv: [];
 depends_on_u_aux: u;
 does_depend_on_u(e_work):= not(apply('freeof, endcons(e_work, depends_on_u_aux)));
 
 /* aux and derivatives definitions */
-block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
+block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work, ddname_work,eva],
   for i_work: 1 thru length(aux_vars) do (
     a_work: aux_vars[i_work],
     eva: ev(a_work),
     aux_def: endcons([a_work, eva], aux_def),
-    /* apply(defrule, [concat('rule, '_, a_work), concat("'", a_work), concat('aux\-\>, a_work)]),*/
     apply(defrule, [concat('rule, '_, a_work), arraymake('aux_vars, [i_work]), concat(aux_prefix, a_work)]),
     if is_time_var(eva) then
       time_var_symbols: cons(a_work, time_var_symbols),
@@ -161,25 +155,29 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work,eva],
 
     rem_d: get_dependencies(a_work),
     for d1_work in get_dependencies(a_work) do (
-      d_work: diff(ev(a_work), d1_work),
+      d_work: diff(eva, d1_work),
       if d_work#0 then (
         dname_work: concat('diff_, a_work, '_, d1_work),
         aux_deriv: endcons([dname_work, d_work], aux_deriv),
         apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
         if is_time_var(d_work) then
-          time_var_symbols: cons(dname_work, time_var_symbols)
-      ),
+          time_var_symbols: cons(dname_work, time_var_symbols),
+        apply(gradef, [a_work, d1_work, dname_work])
+      ) else 
+        apply(gradef, [a_work, d1_work, 0]),
       
       for d2_work in rem_d do (
-        d_work: diff(ev(a_work), d1_work, 1, d2_work, 1),
+        d_work: diff(eva, d1_work, 1, d2_work, 1),
         if d_work#0 then (
           d_ab: sort([d1_work, d2_work]),
-          dname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
-          aux_deriv: endcons([dname_work, d_work], aux_deriv),
-          apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
+          ddname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
+          aux_deriv: endcons([ddname_work, d_work], aux_deriv),
+          apply(defrule, [concat('rule, '_, ddname_work), ddname_work, concat(daux_prefix, ddname_work)]),
           if is_time_var(d_work) then
-            time_var_symbols: cons(dname_work, time_var_symbols)
-        )
+            time_var_symbols: cons(ddname_work, time_var_symbols),
+          apply(gradef, [dname_work, d2_work, ddname_work])
+        ) else
+          apply(gradef, [dname_work, d2_work, 0])        
       ),
       rem_d: delete(d1_work, rem_d)
     )  
@@ -225,6 +223,9 @@ print_deriv([time_var_test]):= block([a_work, i_work:1],
 allparams: append(setdifference(allparams, setify(aux_vars)), new_params);
 arrayparams: subset(allparams, subvarp);
 scalarparams: setdifference(allparams, arrayparams);
+
+scalarparams: setdifference(scalarparams, {w_pen});
+scalarparams: setdifference(scalarparams, setify(mu_hfe_all));
 
 if does_depend_on_u(F) then
   error("F my not depend on u");
@@ -291,7 +292,7 @@ defrule(rulenegexpo, any_exp^-1.0, any_exp^-1);
 
 do_assign(n_work, e_work, n_ind, [testdef]):= block([ret], (
   ?ccurrind\*: n_ind,
-  /* print("e_work: ", e_work, "rep: ", do_replacements(e_work)), */
+  /* print("e_work: ", e_work, "rep: ", do_replacements(e_work)),*/
   gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
   if length(testdef)>0 and check_nan_inf_mode then (
     ret: testdef[1],

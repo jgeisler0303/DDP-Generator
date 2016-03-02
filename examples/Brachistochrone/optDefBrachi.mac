@@ -8,6 +8,7 @@ assume(y<0);
 assume(dy<0);
 
 L: factor(expand(integrate(sqrt((1+dy^2)/(2*g*abs(y+x_*dy))), x_, 0, dx)));
-F: w*(y-yf)^2;
+F: 0;
 
+hfe[1]: y-yf;
 /*h[1]: dy; */
