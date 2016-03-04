@@ -60,11 +60,13 @@ if member(hfe, arrays) then block([i_work],
 
   mu_hfe_all: makelist(concat('mu_fe_, i_work), i_work, 1, n_hfe),
   time_var_symbols: append(time_var_symbols, mu_hfe_all)
-) else
-  n_hfe: 0;
+) else (
+  n_hfe: 0,
+  mu_hfe_all: []
+);
 
 allvars: append(listofvars(listarray(f)),listofvars(F), listofvars(L));
-if member(h, arrays) then allvars: append(allvars, listarray(h));
+if member(h, arrays) then allvars: append(allvars, listofvars(listarray(h)));
 allvars: setdifference(setify(allvars), {k});
 allparams: setdifference(setdifference(allvars, setify(x)), setify(u));
 arrayparams: subset(allparams, subvarp);
@@ -130,6 +132,27 @@ new_params: {}$
 top_level_aux: aux_vars$
 aux_vars: reverse(recurse_deps('top_level_aux, []))$
 
+set_aux_used_by(e_work, lable):= block([a_work],
+  for a_work in listofvars(e_work) do
+    if member(a_work, aux_vars) then (
+      put(a_work, true, lable),
+      set_aux_used_by(ev(a_work), lable)
+    )
+)$
+
+set_aux_used_by(F, used_by_final);
+set_aux_used_by(L, used_by_running);
+set_aux_used_by(listarray(f), used_by_running);
+if member(h, arrays) then set_aux_used_by(listarray(h), used_by_running);
+
+transfer_properties(a_work, b_work):= block([pro, i],
+  pro: flatten(sublist(apply(properties, [a_work]), lambda([x], is(x[1]="user properties")))),
+  for i: 2 thru length(pro) do (
+    put(b_work, get(a_work, pro[i]), pro[i])
+  )
+)$
+
+
 /* make implicit state dependencies explicit and remove direct dependencies */
 block([a_work],
   for a_work in aux_vars do
@@ -156,28 +179,30 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work, ddname_work,
     rem_d: get_dependencies(a_work),
     for d1_work in get_dependencies(a_work) do (
       d_work: diff(eva, d1_work),
-      if d_work#0 then (
+      if not(numberp(d_work)) then (
         dname_work: concat('diff_, a_work, '_, d1_work),
         aux_deriv: endcons([dname_work, d_work], aux_deriv),
         apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
         if is_time_var(d_work) then
           time_var_symbols: cons(dname_work, time_var_symbols),
-        apply(gradef, [a_work, d1_work, dname_work])
+        apply(gradef, [a_work, d1_work, dname_work]),
+        transfer_properties(a_work, dname_work)
       ) else 
-        apply(gradef, [a_work, d1_work, 0]),
+        apply(gradef, [a_work, d1_work, d_work]),
       
       for d2_work in rem_d do (
         d_work: diff(eva, d1_work, 1, d2_work, 1),
-        if d_work#0 then (
+        if not(numberp(d_work)) then (
           d_ab: sort([d1_work, d2_work]),
           ddname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
           aux_deriv: endcons([ddname_work, d_work], aux_deriv),
           apply(defrule, [concat('rule, '_, ddname_work), ddname_work, concat(daux_prefix, ddname_work)]),
           if is_time_var(d_work) then
             time_var_symbols: cons(ddname_work, time_var_symbols),
-          apply(gradef, [dname_work, d2_work, ddname_work])
+          apply(gradef, [dname_work, d2_work, ddname_work]),
+          transfer_properties(a_work, ddname_work)
         ) else
-          apply(gradef, [dname_work, d2_work, 0])        
+          apply(gradef, [dname_work, d2_work, d_work])        
       ),
       rem_d: delete(d1_work, rem_d)
     )  
@@ -188,13 +213,16 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work, ddname_work,
 print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen], /* TODO: change time_var_test to array of flags */
   for a_work in aux_def do (
     skip_gen: false,
-    if length(time_var_test)=1 then (
+    if length(time_var_test)>=1 then (
       if time_var_test[1]=0 and is_time_var(a_work[2]) then
         skip_gen: true,
       if time_var_test[1]=1 and (not(is_time_var(a_work[2])) or does_depend_on_u(a_work[2])) then
         skip_gen: true,
       if time_var_test[1]=2 and (not(is_time_var(a_work[2])) or not(does_depend_on_u(a_work[2]))) then
         skip_gen: true
+    ),
+    if length(time_var_test)>=2 then (
+      if not(get(a_work[1], time_var_test[2])) then skip_gen: true
     ),
     if not(skip_gen) then (
       gentran(literal("// aux_def[", eval(i_work), "]", cr)),
@@ -207,9 +235,19 @@ print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen], /* TODO: change
   )
 )$
       
-print_deriv([time_var_test]):= block([a_work, i_work:1],
+print_deriv([time_var_test]):= block([a_work, i_work:1, skip_gen],
   for a_work in aux_deriv do (
-    if length(time_var_test)<1 or time_var_test[1]=is_time_var(a_work[2]) then (
+    skip_gen: false,
+    if length(time_var_test)>=1 then (
+      if time_var_test[1]=0 and is_time_var(a_work[2]) then
+        skip_gen: true,    
+      if time_var_test[1]=1 and not(is_time_var(a_work[2])) then
+        skip_gen: true
+    ),
+    if length(time_var_test)>=2 then (
+      if not(get(a_work[1], time_var_test[2])) then skip_gen: true
+    ),
+    if not(skip_gen) then (
       gentran(literal("// aux_deriv[", eval(i_work), "]", cr)),
       if atom(float(a_work[2])) then
         do_assign(concat(daux_prefix, a_work[1]), a_work[2], 4)

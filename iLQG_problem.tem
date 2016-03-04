@@ -45,14 +45,39 @@ typedef struct {
     double fuu[N_X*sizeofQuu];
     double fxu[N_X*sizeofQxu];
 #endif
-<<block([a], for a in aux_def do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
 
-<<block([a], for a in aux_deriv do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
 } trajEl_t;
+
+typedef struct {
+    double x[N_X];
+
+    double c;
+    double cx[N_X];
+    double cxx[sizeofQxx];
+
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+<<block([a], for a in aux_deriv do if get(a[1], used_by_final) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+} trajFin_t;
+
+typedef struct {
+    trajEl_t* t;
+    trajFin_t f;
+} traj_t;
+
+typedef struct {
+} multipliersEl_t;
 
 typedef struct {
 <<if n_hfe#0 then gentran(literal("    double mu_fe[", eval(n_hfe), "]\;", cr))>>
 <<if n_hfe#0 then gentran(literal("    double last_hfe[", eval(n_hfe), "]\;", cr))>>
-} multipliersEl_t;
+} multipliersFin_t;
+
+typedef struct {
+    multipliersEl_t* t;
+    multipliersFin_t f;
+} multipliers_t;
 
 #endif // ILQG_PROBLEM_H

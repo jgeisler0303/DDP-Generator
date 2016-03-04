@@ -11,7 +11,7 @@ x0= [-eps];
 Op= [];
 Op.max_iter= 20;
 Op.w_pen_init= 40;
-% Op.w_pen_fact= 1;
+Op.w_pen_fact2= 2;
 
 clf
 hold on

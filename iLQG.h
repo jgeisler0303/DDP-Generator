@@ -64,17 +64,19 @@ typedef struct optSet {
     double w_pen_fact2;
     double gamma;
     
-    trajEl_t *trajectory;
-    trajEl_t *candidates[NUMBER_OF_THREADS]; 
+    traj_t *nominal;
+    traj_t *candidates[NUMBER_OF_THREADS]; 
     
-    multipliersEl_t *multipliers;
+    traj_t trajectories[NUMBER_OF_THREADS+1];
+    
+    multipliers_t multipliers;
 } tOptSet;
 
 void printParams(double **p, int k);
 void standard_parameters(tOptSet *o);
 int iLQG(tOptSet *o);
 char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
-int forward_pass(trajEl_t *c, tOptSet *o, double alpha, double *csum, int cost_only);
+int forward_pass(traj_t *c, tOptSet *o, double alpha, double *csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(tOptSet *o);
 int init_opt(tOptSet *o);

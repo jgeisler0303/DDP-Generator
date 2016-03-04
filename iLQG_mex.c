@@ -98,22 +98,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     new_cost= mxGetPr(plhs[3]);
 
     // aux
-    o.trajectory= mxMalloc(sizeof(trajEl_t)*N);
-    o.candidates[0]= mxMalloc(sizeof(trajEl_t)*N);
-    o.multipliers= mxMalloc(sizeof(multipliersEl_t)*N);
+    for(i= 0; i<NUMBER_OF_THREADS+1; i++)
+        o.trajectories[i].t= mxMalloc(sizeof(trajEl_t)*(N-1));
+    o.multipliers.t= mxMalloc(sizeof(multipliersEl_t)*N);
 //     mexPrintf("sizeof trajEl_t: %d\n", sizeof(trajEl_t));
 
-    for(k= 0; k<N-1; k++)
-        for(i= 0; i<N_U; i++)
-            o.trajectory[k].u[i]= u_nom[MAT_IDX(i, k, N_U)];
     
-    
-     mexPrintf("Set const vars\n");
+    mexPrintf("Set const vars\n");
     if(!init_opt(&o)) {
         success[0]= 0;
         new_cost[0]= o.cost;
     } else {
         mexPrintf("Initializing trajectory\n");
+        for(k= 0; k<N-1; k++)
+            for(i= 0; i<N_U; i++)
+                o.nominal->t[k].u[i]= u_nom[MAT_IDX(i, k, N_U)];
         if(!forward_pass(o.candidates[0], &o, 0.0, &o.cost, 0)) {
             success[0]= 0;
             new_cost[0]= o.cost;
@@ -125,19 +124,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             success[0]= iLQG(&o);
             end = clock();
             mexPrintf("Time for iLQG: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
-            for(k= 0; k<N; k++)
+            for(k= 0; k<N-1; k++)
                 for(i= 0; i<N_X; i++)
-                    x_new[MAT_IDX(i, k, N_X)]= o.trajectory[k].x[i];
+                    x_new[MAT_IDX(i, k, N_X)]= o.nominal->t[k].x[i];
+            for(i= 0; i<N_X; i++)
+                x_new[MAT_IDX(i, N-1, N_X)]= o.nominal->f.x[i];
                 
             for(k= 0; k<N-1; k++)
                 for(i= 0; i<N_U; i++)
-                    u_new[MAT_IDX(i, k, N_U)]= o.trajectory[k].u[i];
+                    u_new[MAT_IDX(i, k, N_U)]= o.nominal->t[k].u[i];
                     
             new_cost[0]= o.cost;
         }
     }
     
     mxFree(o.p);
-    mxFree(o.trajectory);
-    mxFree(o.candidates[0]);
+    for(i= 0; i<NUMBER_OF_THREADS+1; i++)
+        mxFree(o.trajectories[i].t);
 }

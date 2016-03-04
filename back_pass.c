@@ -46,7 +46,8 @@ int back_pass(tOptSet *o) {
     double Qxu_reg[sizeofQxu], Qxu[sizeofQxu];
     double QuuF[sizeofQuu], Quu[sizeofQuu];
     double dummy[N_X*N_X];
-    trajEl_t *t= o->trajectory + N;
+    trajEl_t *t= o->nominal->t + N - 1;
+    trajFin_t *f= &o->nominal->f;
     
     g_norm_sum= 0.0;
 
@@ -62,10 +63,9 @@ int back_pass(tOptSet *o) {
         return 2;
 #endif
 
-    memcpy(Vx, t->cx, sizeof(double)*N_X);
-    memcpy(Vxx, t->cxx, sizeof(double)*sizeofQxx);
+    memcpy(Vx, f->cx, sizeof(double)*N_X);
+    memcpy(Vxx, f->cxx, sizeof(double)*sizeofQxx);
 
-    t--;
     for(k= N-1; k>=0; k--, t--) {
 #if MULTI_THREADED  
         pthread_mutex_lock(&step_mutex);

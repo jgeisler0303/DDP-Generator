@@ -71,7 +71,7 @@ void standard_parameters(tOptSet *o) {
     o->w_pen_init= 1.0;
     o->w_pen_max= INF;
     o->w_pen_fact1= 4.0; // 4...10 Bertsekas p. 123
-    o->w_pen_fact2= 2.0;
+    o->w_pen_fact2= 1.0;
     o->gamma= 0.25; // Bertsekas p. 123
 }
 
@@ -320,7 +320,7 @@ int iLQG(tOptSet *o) {
             // adapt w_pen
             // TODO: add check for sufficient decrease of gradient
             update_multipliers(o, 0);
-            forward_pass(o->trajectory, o, 0.0, &o->cost, 1);
+            forward_pass(o->nominal, o, 0.0, &o->cost, 1);
 
         } else { // no cost improvement
             // increase lambda
@@ -329,7 +329,7 @@ int iLQG(tOptSet *o) {
 
             if(o->w_pen_fact2>1.0) {
                 o->w_pen= min(o->w_pen_max, o->w_pen*o->w_pen_fact2);
-                forward_pass(o->trajectory, o, 0.0, &o->cost, 1);
+                forward_pass(o->nominal, o, 0.0, &o->cost, 1);
             }
             
             // print status
@@ -363,9 +363,9 @@ int iLQG(tOptSet *o) {
 }
 
 void makeCandidateNominal(tOptSet *o, int idx) {
-    trajEl_t *temp;
-    temp= o->trajectory;
-    o->trajectory= o->candidates[idx];
+    traj_t *temp;
+    temp= o->nominal;
+    o->nominal= o->candidates[idx];
     o->candidates[idx]= temp;
 }
 
