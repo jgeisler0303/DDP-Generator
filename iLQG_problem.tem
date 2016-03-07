@@ -73,6 +73,9 @@ typedef struct {
 typedef struct {
 <<if n_hfe#0 then gentran(literal("    double mu_fe[", eval(n_hfe), "]\;", cr))>>
 <<if n_hfe#0 then gentran(literal("    double last_hfe[", eval(n_hfe), "]\;", cr))>>
+
+<<if n_hfi#0 then gentran(literal("    double mu_fi[", eval(n_hfi), "]\;", cr))>>
+<<if n_hfi#0 then gentran(literal("    double last_hfi[", eval(n_hfi), "]\;", cr))>>
 } multipliersFin_t;
 
 typedef struct {

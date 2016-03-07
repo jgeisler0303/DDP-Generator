@@ -47,14 +47,16 @@ is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
 
 
 if member(hfe, arrays) then block([i_work],
-  /* TODO: add check that hfe does not depend on u */
   hfe_: map(lambda([i_work], arrayapply(hfe, [i_work])), flatten(rest(arrayinfo(hfe), 2))),
+  if not(emptyp(sublist(flatten(args(jacobian(hfe_, u))), lambda([x], is(x#0))))) then 
+    error("hfe must not depend on any input u"),
+    
   n_hfe: length(hfe_),
   for i_work: 1 thru n_hfe do (
     concat('hfe_, i_work):: hfe_[i_work],
     concat('pfe_, i_work):: concat('mu_fe_, i_work) * concat('hfe_, i_work) + 0.5*w_pen*(concat('hfe_, i_work))^2,
     mu_fe_next[i_work]: concat('mu_fe_, i_work) + w_pen*concat('hfe_, i_work),
-    F: F + concat('pfe_, i_work) /* TODO: handle auxes used only by hfe separately */
+    F: F + concat('pfe_, i_work)
   ),
   time_var_symbols: append(time_var_symbols, [w_pen]),
 
@@ -63,6 +65,33 @@ if member(hfe, arrays) then block([i_work],
 ) else (
   n_hfe: 0,
   mu_hfe_all: []
+);
+
+matchdeclare ([cond_diff_rule_cond, cond_diff_rule_true, cond_diff_rule_false, cond_diff_rule_diff], true);  
+cond_diff_rule: first(tellsimpafter ('diff ('if cond_diff_rule_cond then cond_diff_rule_true else cond_diff_rule_false, cond_diff_rule_diff), 'if cond_diff_rule_cond then diff (cond_diff_rule_true, cond_diff_rule_diff) else diff (cond_diff_rule_false, cond_diff_rule_diff)));
+
+if member(hfi, arrays) then block([i_work],
+  hfi_: map(lambda([i_work], arrayapply(hfi, [i_work])), flatten(rest(arrayinfo(hfi), 2))),
+  if not(emptyp(sublist(flatten(args(jacobian(hfi_, u))), lambda([x], is(x#0))))) then 
+    error("hfi must not depend on any input u"),
+
+  n_hfi: length(hfi_),
+  for i_work: 1 thru n_hfi do (
+    concat('hfi_, i_work):: hfi_[i_work],
+    /* concat('pfi_A_, i_work):: concat('mu_fi_, i_work) * concat('hfi_, i_work) * (1 + w_pen*concat('hfi_, i_work)),
+    concat('pfi_I_, i_work):: concat('mu_fi_, i_work) * concat('hfi_, i_work) / (1 - w_pen*concat('hfi_, i_work)),*/
+    concat('pfi_, i_work):: 'if concat('hfi_, i_work)>=0 then concat('mu_fi_, i_work) * concat('hfi_, i_work) * (1 + w_pen*concat('hfi_, i_work)) else concat('mu_fi_, i_work) * concat('hfi_, i_work) / (1 - w_pen*concat('hfi_, i_work)), 
+    mu_fi_A_next[i_work]: concat('mu_fi_, i_work) * (1 + 2*w_pen*concat('hfi_, i_work)),
+    mu_fi_I_next[i_work]: concat('mu_fi_, i_work) * (1 - w_pen*concat('hfi_, i_work))^-2,
+    F: F + concat('pfi_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hfi_all: makelist(concat('mu_fi_, i_work), i_work, 1, n_hfi),
+  time_var_symbols: append(time_var_symbols, mu_hfi_all)
+) else (
+  n_hfi: 0,
+  mu_hfi_all: []
 );
 
 allvars: append(listofvars(listarray(f)),listofvars(F), listofvars(L));
@@ -264,6 +293,7 @@ scalarparams: setdifference(allparams, arrayparams);
 
 scalarparams: setdifference(scalarparams, {w_pen});
 scalarparams: setdifference(scalarparams, setify(mu_hfe_all));
+scalarparams: setdifference(scalarparams, setify(mu_hfi_all));
 
 if does_depend_on_u(F) then
   error("F my not depend on u");
@@ -311,7 +341,7 @@ block([i],
 
 do_replacements(e_work):= block([u, x, p_work],
   /* print("e_work: ", e_work), */
-  apply(apply1, cons('e_work, rules))
+  apply(apply1, cons('e_work, delete(cond_diff_rule, rules)))
 );
 
 matchdeclare(rule_idx, atom);
@@ -537,3 +567,5 @@ do_hx(hx_name, h_sign_name, i_work, n_ind):= block([j_work, hx_],
   do_assign(apply("'", [arraymake(h_sign_name, [0])]), apply("+", hu_), n_ind)
  
 );
+
+/*print("End of preprocessing");*/
