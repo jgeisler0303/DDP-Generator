@@ -7,7 +7,7 @@
 
 #include "iLQG_problem.h"
 
-#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL}
+#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL}
 
 #ifndef PRNT
 #define PRNT printf
@@ -49,6 +49,7 @@ typedef struct optSet {
     int max_iter;
     double tolGrad;
     double tolFun;
+    double tolConstraint;
     double zMin;
     int regType;
     int iterations;
@@ -57,12 +58,14 @@ typedef struct optSet {
     double *log_cost;
     double dV[2];
     
-    double w_pen;
-    double w_pen_max;
-    double w_pen_init;
+    double w_pen_l;
+    double w_pen_f;
+    double w_pen_max_l;
+    double w_pen_max_f;
+    double w_pen_init_l;
+    double w_pen_init_f;
     double w_pen_fact1;
     double w_pen_fact2;
-    double gamma;
     
     traj_t *nominal;
     traj_t *candidates[NUMBER_OF_THREADS]; 

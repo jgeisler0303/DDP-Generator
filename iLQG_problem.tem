@@ -68,6 +68,11 @@ typedef struct {
 } traj_t;
 
 typedef struct {
+<<if n_hle#0 then gentran(literal("    double mu_le[", eval(n_hle), "]\;", cr))>>
+<<if n_hle#0 then gentran(literal("    double last_hle[", eval(n_hle), "]\;", cr))>>
+
+<<if n_hli#0 then gentran(literal("    double mu_li[", eval(n_hli), "]\;", cr))>>
+<<if n_hli#0 then gentran(literal("    double last_hli[", eval(n_hli), "]\;", cr))>>
 } multipliersEl_t;
 
 typedef struct {

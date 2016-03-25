@@ -78,8 +78,6 @@ if member(hfi, arrays) then block([i_work],
   n_hfi: length(hfi_),
   for i_work: 1 thru n_hfi do (
     concat('hfi_, i_work):: hfi_[i_work],
-    /* concat('pfi_A_, i_work):: concat('mu_fi_, i_work) * concat('hfi_, i_work) * (1 + w_pen*concat('hfi_, i_work)),
-    concat('pfi_I_, i_work):: concat('mu_fi_, i_work) * concat('hfi_, i_work) / (1 - w_pen*concat('hfi_, i_work)),*/
     concat('pfi_, i_work):: 'if concat('hfi_, i_work)>=0 then concat('mu_fi_, i_work) * concat('hfi_, i_work) * (1 + w_pen*concat('hfi_, i_work)) else concat('mu_fi_, i_work) * concat('hfi_, i_work) / (1 - w_pen*concat('hfi_, i_work)), 
     mu_fi_A_next[i_work]: concat('mu_fi_, i_work) * (1 + 2*w_pen*concat('hfi_, i_work)),
     mu_fi_I_next[i_work]: concat('mu_fi_, i_work) * (1 - w_pen*concat('hfi_, i_work))^-2,
@@ -92,6 +90,43 @@ if member(hfi, arrays) then block([i_work],
 ) else (
   n_hfi: 0,
   mu_hfi_all: []
+);
+
+if member(hle, arrays) then block([i_work],
+  hle_: map(lambda([i_work], arrayapply(hle, [i_work])), flatten(rest(arrayinfo(hle), 2))),
+  n_hle: length(hle_),
+  for i_work: 1 thru n_hle do (
+    concat('hle_, i_work):: hle_[i_work],
+    concat('ple_, i_work):: concat('mu_le_, i_work) * concat('hle_, i_work) + 0.5*w_pen*(concat('hle_, i_work))^2,
+    mu_le_next[i_work]: concat('mu_le_, i_work) + w_pen*concat('hle_, i_work),
+    L: L + concat('ple_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hle_all: makelist(concat('mu_le_, i_work), i_work, 1, n_hle),
+  time_var_symbols: append(time_var_symbols, mu_hle_all)
+) else (
+  n_hle: 0,
+  mu_hle_all: []
+);
+
+if member(hli, arrays) then block([i_work],
+  hli_: map(lambda([i_work], arrayapply(hli, [i_work])), flatten(rest(arrayinfo(hli), 2))),
+  n_hli: length(hli_),
+  for i_work: 1 thru n_hli do (
+    concat('hli_, i_work):: hli_[i_work],
+    concat('pli_, i_work):: 'if concat('hli_, i_work)>=0 then concat('mu_li_, i_work) * concat('hli_, i_work) * (1 + w_pen*concat('hli_, i_work)) else concat('mu_li_, i_work) * concat('hli_, i_work) / (1 - w_pen*concat('hli_, i_work)), 
+    mu_li_A_next[i_work]: concat('mu_li_, i_work) * (1 + 2*w_pen*concat('hli_, i_work)),
+    mu_li_I_next[i_work]: concat('mu_li_, i_work) * (1 - w_pen*concat('hli_, i_work))^-2,
+    L: L + concat('pli_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hli_all: makelist(concat('mu_li_, i_work), i_work, 1, n_hli),
+  time_var_symbols: append(time_var_symbols, mu_hli_all)
+) else (
+  n_hli: 0,
+  mu_hli_all: []
 );
 
 allvars: append(listofvars(listarray(f)),listofvars(F), listofvars(L));
@@ -208,31 +243,32 @@ block([i_work, a_work, d1_work, d2_work, d_work, rem_d, dname_work, ddname_work,
     rem_d: get_dependencies(a_work),
     for d1_work in get_dependencies(a_work) do (
       d_work: diff(eva, d1_work),
+      dname_work: concat('diff_, a_work, '_, d1_work),
       if not(numberp(d_work)) then (
-        dname_work: concat('diff_, a_work, '_, d1_work),
         aux_deriv: endcons([dname_work, d_work], aux_deriv),
         apply(defrule, [concat('rule, '_, dname_work), dname_work, concat(daux_prefix, dname_work)]),
         if is_time_var(d_work) then
           time_var_symbols: cons(dname_work, time_var_symbols),
         apply(gradef, [a_work, d1_work, dname_work]),
-        transfer_properties(a_work, dname_work)
+        transfer_properties(a_work, dname_work),
+
+        for d2_work in rem_d do (
+          dd_work: diff(eva, d1_work, 1, d2_work, 1),
+          if not(numberp(dd_work)) then (
+            d_ab: sort([d1_work, d2_work]),
+            ddname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
+            aux_deriv: endcons([ddname_work, dd_work], aux_deriv),
+            apply(defrule, [concat('rule, '_, ddname_work), ddname_work, concat(daux_prefix, ddname_work)]),
+            if is_time_var(dd_work) then
+              time_var_symbols: cons(ddname_work, time_var_symbols),
+            apply(gradef, [dname_work, d2_work, ddname_work]),
+            transfer_properties(a_work, ddname_work)
+          ) else
+            apply(gradef, [dname_work, d2_work, dd_work])
+        )
       ) else 
         apply(gradef, [a_work, d1_work, d_work]),
       
-      for d2_work in rem_d do (
-        d_work: diff(eva, d1_work, 1, d2_work, 1),
-        if not(numberp(d_work)) then (
-          d_ab: sort([d1_work, d2_work]),
-          ddname_work: concat('diff_2, a_work, '_, d_ab[1], '_, d_ab[2]),
-          aux_deriv: endcons([ddname_work, d_work], aux_deriv),
-          apply(defrule, [concat('rule, '_, ddname_work), ddname_work, concat(daux_prefix, ddname_work)]),
-          if is_time_var(d_work) then
-            time_var_symbols: cons(ddname_work, time_var_symbols),
-          apply(gradef, [dname_work, d2_work, ddname_work]),
-          transfer_properties(a_work, ddname_work)
-        ) else
-          apply(gradef, [dname_work, d2_work, d_work])        
-      ),
       rem_d: delete(d1_work, rem_d)
     )  
   )
@@ -294,6 +330,8 @@ scalarparams: setdifference(allparams, arrayparams);
 scalarparams: setdifference(scalarparams, {w_pen});
 scalarparams: setdifference(scalarparams, setify(mu_hfe_all));
 scalarparams: setdifference(scalarparams, setify(mu_hfi_all));
+scalarparams: setdifference(scalarparams, setify(mu_hle_all));
+scalarparams: setdifference(scalarparams, setify(mu_hli_all));
 
 if does_depend_on_u(F) then
   error("F my not depend on u");
@@ -358,13 +396,15 @@ make_x_u_rules(x, 'x);
 make_x_u_rules(u, 'u);
 defrule(rulenegexpo, any_exp^-1.0, any_exp^-1);
 
-do_assign(n_work, e_work, n_ind, [testdef]):= block([ret], (
+do_assign(n_work, e_work, n_ind, [testdef]):= block([ret, prnts], (
   ?ccurrind\*: n_ind,
   /* print("e_work: ", e_work, "rep: ", do_replacements(e_work)),*/
   gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
   if length(testdef)>0 and check_nan_inf_mode then (
     ret: testdef[1],
-    gentran(eval(if 'isNANorINF(n_work) then ('PRNT(literal("\"    @k %d: ", n_work,  " in line %d is nan or inf: %g\\n\""), 'k, '__LINE__, n_work), return(ret))))
+    prnts:map(lambda([v], PRNT(sconcat("\"        ", v,  "= %g\\n\""), v)), do_replacements(listofvars(e_work))),
+    prnts: buildq([e: prnts], ","(splice(e))),
+    gentran(if 'isNANorINF(eval(n_work)) then ('PRNT(literal("\"    @k %d: ", eval(n_work),  " in line %d is nan or inf: %g\\n\", k, __LINE__-3"), eval(n_work)), eval(prnts), return(eval(ret))))
   )
 ));
 

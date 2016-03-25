@@ -58,6 +58,7 @@ void standard_parameters(tOptSet *o) {
     o->alpha= default_alpha;
     o->n_alpha= 8;
     o->tolFun= 1e-7;
+    o->tolConstraint= 1e-7;
     o->tolGrad= 1e-5;
     o->max_iter= 20;
     o->lambdaInit= 1;
@@ -68,11 +69,12 @@ void standard_parameters(tOptSet *o) {
     o->regType= 1;
     o->zMin= 0.0;
     o->debug_level= 2;
-    o->w_pen_init= 1.0;
-    o->w_pen_max= INF;
+    o->w_pen_init_l= 1.0;
+    o->w_pen_init_f= 1.0;
+    o->w_pen_max_l= INF;
+    o->w_pen_max_f= INF;
     o->w_pen_fact1= 4.0; // 4...10 Bertsekas p. 123
     o->w_pen_fact2= 1.0;
-    o->gamma= 0.25; // Bertsekas p. 123
 }
 
 char setOptParamErr_not_scalar[]= "parameter must be scalar";
@@ -104,6 +106,12 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<=0.0)
             return setOptParamErr_not_pos;
         o->tolFun= value[0];
+    } else if(strcmp(name, "tolConstraint")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<=0.0)
+            return setOptParamErr_not_pos;
+        o->tolConstraint= value[0];
     } else if(strcmp(name, "tolGrad")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
@@ -164,18 +172,30 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<0.0 || value[0]>6.0)
             return setOptParamErr_debug_level_range;
         o->debug_level= value[0];
-    } else if(strcmp(name, "w_pen_init")==0) {
+    } else if(strcmp(name, "w_pen_init_l")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
         if(value[0]<0.0)
             return setOptParamErr_not_pos;
-        o->w_pen_init= value[0];
-    } else if(strcmp(name, "w_pen_max")==0) {
+        o->w_pen_init_l= value[0];
+    } else if(strcmp(name, "w_pen_init_f")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
         if(value[0]<0.0)
             return setOptParamErr_not_pos;
-        o->w_pen_max= value[0];
+        o->w_pen_init_f= value[0];
+    } else if(strcmp(name, "w_pen_max_l")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->w_pen_max_l= value[0];
+    } else if(strcmp(name, "w_pen_max_f")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->w_pen_max_f= value[0];
     } else if(strcmp(name, "w_pen_fact1")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
@@ -188,14 +208,6 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<1.0)
             return setOptParamErr_lt_one;
         o->w_pen_fact2= value[0];
-    } else if(strcmp(name, "gamma")==0) {
-        if(n!=1)
-            return setOptParamErr_not_scalar;
-        if(value[0]>1.0)
-            return setOptParamErr_gt_one;
-        if(value[0]<0.0)
-            return setOptParamErr_not_pos;
-        o->gamma= value[0];
     } else {
         return setOptParamErr_no_such_parameter;
     }
@@ -218,7 +230,8 @@ int iLQG(tOptSet *o) {
     pthread_t bp_thread;
 #endif    
     o->lambda= o->lambdaInit;
-    o->w_pen= o->w_pen_init;
+    o->w_pen_l= o->w_pen_init_l;
+    o->w_pen_f= o->w_pen_init_f;
     newDeriv= 1;
     
     update_multipliers(o, 1);
@@ -280,6 +293,7 @@ int iLQG(tOptSet *o) {
 #endif
         
         // check for termination due to small gradient
+        // TODO: add constraint tolerance check
         if(o->g_norm < o->tolGrad && o->lambda < 1e-5) {
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
             o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
@@ -297,7 +311,7 @@ int iLQG(tOptSet *o) {
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPassDone) {
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen: %-9.3g\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen));
+                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen_l: %-9.3g w_pen_f: %-9.3g\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen_l, o->w_pen_f));
             
             // decrease lambda
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
@@ -311,6 +325,7 @@ int iLQG(tOptSet *o) {
             newDeriv= 1;
             
             // terminate ?
+            // TODO: add constraint tolerance check
             if(o->dcost < o->tolFun) {
                 if(o->debug_level>=1)
                     TRACE(("\nSUCCESS: cost change < tolFun\n"));
@@ -328,13 +343,14 @@ int iLQG(tOptSet *o) {
             o->lambda= max(o->lambda * dlambda, o->lambdaMin);
 
             if(o->w_pen_fact2>1.0) {
-                o->w_pen= min(o->w_pen_max, o->w_pen*o->w_pen_fact2);
+                o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact2);
+                o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact2);
                 forward_pass(o->nominal, o, 0.0, &o->cost, 1);
             }
             
             // print status
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  REJECTED    expected: %-11.3g    actual: %-11.3g    log10lam: %3.1f w_pen: %-9.3g\n", iter+1, o->expected , o->dcost, log10(o->lambda), o->w_pen));
+                TRACE(("iter: %-3d  REJECTED    expected: %-11.3g    actual: %-11.3g    log10lam: %3.1f w_pen_l: %-9.3g w_pen_l: %-9.3g\n", iter+1, o->expected , o->dcost, log10(o->lambda), o->w_pen_l, o->w_pen_f));
             
             // terminate ?
             if(o->lambda > o->lambdaMax) {

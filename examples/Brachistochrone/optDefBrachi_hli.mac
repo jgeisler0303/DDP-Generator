@@ -1,0 +1,14 @@
+x: [y];
+u: [dy];
+
+f[y]: y + dy*dx;
+
+assume(dx>0);
+assume(y<0);
+assume(dy<0);
+
+L: factor(expand(integrate(sqrt((1+dy^2)/(2*g*abs(y+x_*dy))), x_, 0, dx)));
+F: 0;
+
+hli[1]: ymin[k]-y;
+hfe[1]: y-ymin[k];
