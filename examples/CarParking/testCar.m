@@ -1,3 +1,4 @@
+randn ("state", 0);
 %% parameters
 p.d= 2;
 p.h= 0.03;
