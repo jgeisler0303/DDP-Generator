@@ -1,0 +1,41 @@
+defstruct(depgraph(g, syms));
+dg:new(depgraph);
+dg@g:empty_graph(0);
+dg@syms: [];
+
+add_symbol(s, dg):= block(
+    i: sublist_indices(dg@syms, lambda([x], x=s)),
+    if length(i)>1 then
+        error("something went wrong. the symbol list contains the symbol ", s, " more than once"),
+    if length(i)<1 then (
+        i: length(dg@syms),
+        dg@syms: append(dg@syms, [s]),
+        add_vertex(i, dg@g)
+    ) else
+        i: i[1],
+    
+    i
+)$
+
+build_dep_graph(s, dg):= block([sym, syms],
+    i: add_symbol(s, dg),
+    syms: setify(listofvars(ev(s))),
+    for sym in syms do (
+        j: add_symbol(sym, dg),
+        
+    ),
+    /*if member(new_dep, parents) then
+      error("circular definition of dependencies involving ", new_dep, " and ", dep)
+    else
+      if not(member(new_dep, new_aux)) then (
+        if length(parents)#0 then   (d_work, new_dep),
+
+        res: recurse_deps(new_dep, append(parents, [new_dep])),
+        new_aux: append(new_aux, [new_dep]),
+        for r in res do
+          new_aux: append(delete(r, new_aux), [r])
+      )
+  ),*/
+    
+    dg
+)$

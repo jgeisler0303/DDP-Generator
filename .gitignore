@@ -41,3 +41,7 @@
 
 # backup files
 *~
+
+# other
+octave-workspace
+*.orig

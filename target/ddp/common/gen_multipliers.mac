@@ -1,0 +1,80 @@
+if member(hfe, arrays) then block([i_work],
+  hfe_: map(lambda([i_work], arrayapply(hfe, [i_work])), flatten(rest(arrayinfo(hfe), 2))),
+  if not(emptyp(sublist(flatten(args(jacobian(hfe_, u))), lambda([x], is(x#0))))) then 
+    error("hfe must not depend on any input u"),
+    
+  n_hfe: length(hfe_),
+  for i_work: 1 thru n_hfe do (
+    concat('hfe_, i_work):: hfe_[i_work],
+    concat('pfe_, i_work):: concat('mu_fe_, i_work) * concat('hfe_, i_work) + 0.5*w_pen*(concat('hfe_, i_work))^2,
+    mu_fe_next[i_work]: concat('mu_fe_, i_work) + w_pen*concat('hfe_, i_work),
+    F: F + concat('pfe_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hfe_all: makelist(concat('mu_fe_, i_work), i_work, 1, n_hfe),
+  time_var_symbols: append(time_var_symbols, mu_hfe_all)
+) else (
+  n_hfe: 0,
+  mu_hfe_all: []
+);
+
+if member(hfi, arrays) then block([i_work],
+  hfi_: map(lambda([i_work], arrayapply(hfi, [i_work])), flatten(rest(arrayinfo(hfi), 2))),
+  if not(emptyp(sublist(flatten(args(jacobian(hfi_, u))), lambda([x], is(x#0))))) then 
+    error("hfi must not depend on any input u"),
+
+  n_hfi: length(hfi_),
+  for i_work: 1 thru n_hfi do (
+    concat('hfi_, i_work):: hfi_[i_work],
+    concat('pfi_, i_work):: 'if concat('hfi_, i_work)>=0 then concat('mu_fi_, i_work) * concat('hfi_, i_work) * (1 + w_pen*concat('hfi_, i_work)) else concat('mu_fi_, i_work) * concat('hfi_, i_work) / (1 - w_pen*concat('hfi_, i_work)), 
+    mu_fi_A_next[i_work]: concat('mu_fi_, i_work) * (1 + 2*w_pen*concat('hfi_, i_work)),
+    mu_fi_I_next[i_work]: concat('mu_fi_, i_work) * (1 - w_pen*concat('hfi_, i_work))^-2,
+    F: F + concat('pfi_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hfi_all: makelist(concat('mu_fi_, i_work), i_work, 1, n_hfi),
+  time_var_symbols: append(time_var_symbols, mu_hfi_all)
+) else (
+  n_hfi: 0,
+  mu_hfi_all: []
+);
+
+if member(hle, arrays) then block([i_work],
+  hle_: map(lambda([i_work], arrayapply(hle, [i_work])), flatten(rest(arrayinfo(hle), 2))),
+  n_hle: length(hle_),
+  for i_work: 1 thru n_hle do (
+    concat('hle_, i_work):: hle_[i_work],
+    concat('ple_, i_work):: concat('mu_le_, i_work) * concat('hle_, i_work) + 0.5*w_pen*(concat('hle_, i_work))^2,
+    mu_le_next[i_work]: concat('mu_le_, i_work) + w_pen*concat('hle_, i_work),
+    L: L + concat('ple_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hle_all: makelist(concat('mu_le_, i_work), i_work, 1, n_hle),
+  time_var_symbols: append(time_var_symbols, mu_hle_all)
+) else (
+  n_hle: 0,
+  mu_hle_all: []
+);
+
+if member(hli, arrays) then block([i_work],
+  hli_: map(lambda([i_work], arrayapply(hli, [i_work])), flatten(rest(arrayinfo(hli), 2))),
+  n_hli: length(hli_),
+  for i_work: 1 thru n_hli do (
+    concat('hli_, i_work):: hli_[i_work],
+    concat('pli_, i_work):: 'if concat('hli_, i_work)>=0 then concat('mu_li_, i_work) * concat('hli_, i_work) * (1 + w_pen*concat('hli_, i_work)) else concat('mu_li_, i_work) * concat('hli_, i_work) / (1 - w_pen*concat('hli_, i_work)), 
+    mu_li_A_next[i_work]: concat('mu_li_, i_work) * (1 + 2*w_pen*concat('hli_, i_work)),
+    mu_li_I_next[i_work]: concat('mu_li_, i_work) * (1 - w_pen*concat('hli_, i_work))^-2,
+    L: L + concat('pli_, i_work)
+  ),
+  time_var_symbols: append(time_var_symbols, [w_pen]),
+
+  mu_hli_all: makelist(concat('mu_li_, i_work), i_work, 1, n_hli),
+  time_var_symbols: append(time_var_symbols, mu_hli_all)
+) else (
+  n_hli: 0,
+  mu_hli_all: []
+);
+

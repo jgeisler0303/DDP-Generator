@@ -3,6 +3,7 @@
 
 #include "printMat.h"
 #include "matMult.h"
+#include "mex.h"
 
 void printVec(const double *A, const int n, const char *nm) {
     int i, nc, ns= 255-20;

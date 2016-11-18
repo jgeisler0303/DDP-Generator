@@ -1,0 +1,546 @@
+<<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#include "iLQG.h"
+#include "matMult.h"
+
+#define mcond(cond, a, dummy, b) (cond)? a: b
+
+<<tri_matrix_mode: true;>>
+
+int n_params= <<gentran(eval(length(params)))$>>;
+    
+<<
+block([i], for i:1 thru length(params) do gentran(literal("tParamDesc p_name", eval(i), "= {\"", eval(params[i][1]), "\", ", eval(if params[i][2]='k then -1 else params[i][2]), ", 0}\; // -> ", eval(if params[i][2]=1 then do_replacements(params[i][1]) else do_replacements(arraymake(params[i][1], [0]))),cr)))$
+>>
+int n_vars= 0;
+    
+tParamDesc *paramdesc[]= {<<block([i], for i:1 thru length(params) do (gentran(literal(&, "p_name", eval(i))), if i#length(params) then gentran(literal(", "))))$>>};
+
+<<block([i], for i: 1 thru n_hfe do gentran(literal("#define mu_fe_", eval(i), " m->mu_fe[", eval(i-1), "]", cr)))$>>
+
+<<block([i], for i: 1 thru n_hfi do gentran(literal("#define mu_fi_", eval(i), " m->mu_fi[", eval(i-1), "]", cr)))$>>
+
+<<block([i], for i: 1 thru n_hle do gentran(literal("#define mu_le_", eval(i), " m->mu_le[", eval(i-1), "]", cr)))$>>
+
+<<block([i], for i: 1 thru n_hli do gentran(literal("#define mu_li_", eval(i), " m->mu_li[", eval(i-1), "]", cr)))$>>
+
+static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o);
+static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o);
+static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o);
+static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o);
+static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o);
+static int bp_derivsL(trajEl_t *t, int k, double **p);
+static int bp_derivsF(trajFin_t *t, int k, double **p);
+
+static int ddpL(trajEl_t *t, int k, const tOptSet *o) {
+    const double *x= t->x;
+    const double *u= t->u;
+    double **p= o->p;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<do_assign('t\-\>c, L, 4, 0)>>
+    
+    return 1;
+}
+
+static int ddpF(trajFin_t *t, const tOptSet *o) {
+    const double *x= t->x;
+    const int k= o->n_hor;
+    double **p= o->p;
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+
+<<do_assign('t\-\>c, F, 4, 0)>>
+    
+    return 1;
+}
+
+static int ddpf(double x_next[], const trajEl_t *t, int k, double **p, int N) {
+    const double *x= t->x;
+    const double *u= t->u;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<block([i], for i:1 thru nx do do_assign(x_next[i-1], f[x[i]], 4, 0))>>
+    return 1;
+}
+
+void clampU(double *u, const trajEl_t *t, int k, double **p, int N) {
+    double limit;
+    const double *x= t->x;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+
+<<block([i], for i: 1 thru nh do do_clamp(i))>>
+}
+
+static void limitsU(trajEl_t *t, int k, double **p, int N) {
+    int i, j;
+    int lower_idx[N_U], upper_idx[N_U], *idx_;
+    double limit;
+    const double *x= t->x;
+    double *hx_, *h_sign;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+
+    for(i= 0; i<N_U; i++) {
+        lower_idx[i]= -1;
+        upper_idx[i]= -1;
+        t->lower[i]= -INF;
+        t->upper[i]= INF;
+    }        
+    
+<<block([i], for i: 1 thru nh do do_limits('t\-\>, i))>>
+
+    for(i= 0; i<N_U; i++) {
+        t->lower[i]-= t->u[i];
+        t->upper[i]-= t->u[i]; 
+    }
+
+    for(j= 0; j<2; j++) {
+        if(j==0) {
+            idx_= lower_idx;
+            hx_= t->lower_hx;
+            h_sign= t->lower_sign;
+        } else {
+            idx_= upper_idx;
+            hx_= t->upper_hx;
+            h_sign= t->upper_sign;
+        }
+        for(i= 0; i<N_U; i++, hx_+= N_X, h_sign++) {
+            switch(idx_[i]) {
+                case -1:
+                    h_sign[0]= 0.0;
+                    break;
+<<block([i], for i: 1 thru nh do (
+  gentran(literal("                case ", eval(i-1), "\:", cr)),
+  do_hx('hx_, 'h_sign, i, 4*5),
+  gentran(literal("                    break\;", cr))
+))>>
+            }
+        }
+    }
+}
+
+int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only) {
+    int i, k, j;
+    double dx;
+    double *x0= o->x0;
+    int N= o->n_hor;
+    double **params= o->p;
+    
+    trajEl_t *t= o->nominal->t;
+    trajFin_t *f= &o->nominal->f;
+    trajEl_t *ct= c->t;
+    trajFin_t *cf= &c->f;
+    
+    multipliersEl_t *m= o->multipliers.t;
+    const multipliersFin_t *mf= &o->multipliers.f;
+    
+    double *x_next;
+    
+    csum[0]= 0.0;
+
+    if(!cost_only)
+        for(i= 0; i<N_X; i++) ct->x[i]= x0[i]; // ic
+
+    for(k= 0; k<N; k++, t++, ct++, m++) {
+        if(!cost_only) {
+            if(alpha!=0.0) {
+                for(j= 0; j<N_U; j++)
+                    ct->u[j]= t->u[j] + t->l[j]*alpha;
+                for(i= 0; i<N_X; i++) {
+                    dx= ct->x[i] - t->x[i];
+                    
+                    for(j= 0; j<N_U; j++) {
+                        ct->u[j]+= t->L[MAT_IDX(j, i, N_U)]*dx;
+                    }
+                }
+            } else {
+                for(j= 0; j<N_U; j++)
+                    ct->u[j]= t->u[j];
+            }
+        }        
+        if(!calcXVariableAux(ct, m, k, o)) return 0;
+        
+        if(!cost_only)
+            clampU(ct->u, ct, k, params, N);
+        if(!calcXUVariableAux(ct, m, k, o)) return 0;
+        
+        if(!cost_only) {
+            if(k>=N-1)
+                x_next= cf->x;
+            else
+                x_next= (ct+1)->x;
+                
+            if(!ddpf(x_next, ct, k, params, N)) return 0;
+        }
+        
+        if(!ddpL(ct, k, o)) return 0;
+        csum[0]+= ct->c;        
+    }
+    
+    if(!calcFVariableAux(cf, mf, o)) return 0;
+        
+    if(!ddpF(cf, o))  return 0;
+    csum[0]+= cf->c;
+        
+    return 1;
+}
+
+int calc_derivsL(const tOptSet *o, trajEl_t *t, const multipliersEl_t *m, int k) {
+    if(!calcLAuxDeriv(t, m, k, o)) return 0;
+    if(!bp_derivsL(t, k, o->p)) return 0;
+    
+    limitsU(t, k, o->p, o->n_hor);
+
+    return 1;
+}
+
+int calc_derivsF(const tOptSet *o, trajFin_t *t, const multipliersFin_t *m) {
+    if(!calcFAuxDeriv(t, m, o)) return 0;
+    if(!bp_derivsF(t, o->n_hor, o->p)) return 0;
+    
+    return 1;
+}
+
+static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
+    const double *x= t->x;
+    double **p= o->p;
+    const double w_pen= o->w_pen_l;
+<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+    
+<<print_aux(1, used_by_running);>>
+
+<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+
+    return 1;
+} 
+
+static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
+    const double *x= t->x;
+    const double *u= t->u;
+    double **p= o->p;
+    const double w_pen= o->w_pen_l;
+<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_def do if is_time_var(a[2]) and does_depend_on_u(a[2]) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+    
+<<print_aux(2, used_by_running);>>
+
+<<block([a], for a in aux_def do if is_time_var(a[2]) and does_depend_on_u(a[2]) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+
+    return 1;
+} 
+
+static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o) {
+    const double *x= t->x;
+    double **p= o->p;
+    const double w_pen= o->w_pen_f;
+    const int k= o->n_hor;
+<<block([a], for a in aux_def do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+    
+<<print_aux(1, used_by_final);>>
+
+<<block([a], for a in aux_def do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+    return 1;
+} 
+
+static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
+    const double *x= t->x;
+    const double *u= t->u;
+    const double w_pen= o->w_pen_l;
+    double **p= o->p;
+<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<print_deriv(1, used_by_running);>>
+
+<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+
+    return 1;
+}
+
+static int bp_derivsL(trajEl_t *t, int k, double **p) {
+    const double *x= t->x;
+    const double *u= t->u;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+// derivatives of f
+<<print_jaco('t\-\>fx, fx, true);>>
+
+<<print_jaco('t\-\>fu, fu, true);>>
+
+#if FULL_DDP
+<<if not(all_zero(fxx)) then print_jaco2('t\-\>fxx, fxx, true);>>
+
+<<if not(all_zero(fuu)) then print_jaco2('t\-\>fuu, fuu, true);>>
+
+<<if not(all_zero(fxu)) then print_jaco2('t\-\>fxu, fxu, true);>>
+#endif
+
+// derivatives of L
+<<print_grad('t\-\>cx, Lx);>>
+
+<<print_hess('t\-\>cxx, Lxx);>>
+
+<<print_grad('t\-\>cu, Lu);>>
+
+<<print_hess('t\-\>cuu, Luu);>>
+
+<<print_hess('t\-\>cxu, Lxu);>>
+
+    return 1;
+}
+
+static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o) {
+    const double *x= t->x;
+    const double w_pen= o->w_pen_f;
+    double **p= o->p;
+    const int k= o->n_hor;
+<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<print_deriv(1, used_by_final);>>
+
+<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+
+    return 1;
+}
+
+static int bp_derivsF(trajFin_t *t, int k, double **p) {
+    const double *x= t->x;
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<print_grad('t\-\>cx, Fx);>>
+
+<<print_hess('t\-\>cxx, Fxx);>>
+    return 1;
+}
+
+static int init_running(trajEl_t *t, const tOptSet *o) {
+    int k;
+    double **p= o->p;
+<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+    
+    for(k= 0; k<o->n_hor; k++, t++) {
+<<print_aux(0, used_by_running);>>
+<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+
+<<print_deriv(0, used_by_running);>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+
+// derivatives of L
+<<print_grad('t\-\>cx, Lx, false);>>
+
+<<print_hess('t\-\>cxx, Lxx, false);>>
+
+<<print_grad('t\-\>cu, Lu, false);>>
+
+<<print_hess('t\-\>cuu, Luu, false);>>
+
+<<print_hess('t\-\>cxu, Lxu, false);>>
+
+// derivatives of f
+<<print_jaco('t\-\>fx, fx, false);>>
+
+<<print_jaco('t\-\>fu, fu, false);>>
+
+#if FULL_DDP
+<<if not(all_zero(fxx)) then print_jaco2('t\-\>fxx, fxx, false) else gentran(literal("    memset(t\-\>fxx, 0, sizeof(double)*N_X*sizeofQxx)\;", cr));>>
+
+<<if not(all_zero(fuu)) then print_jaco2('t\-\>fuu, fuu, false) else gentran(literal("    memset(t\-\>fuu, 0, sizeof(double)*N_X*sizeofQuu)\;", cr));>>
+
+<<if not(all_zero(fxu)) then print_jaco2('t\-\>fxu, fxu, false) else gentran(literal("    memset(t\-\>fxu, 0, sizeof(double)*N_X*sizeofQxu)\;", cr));>>
+#endif
+    }
+    
+    return 1;
+}
+
+static int init_final(trajFin_t *t, const tOptSet *o) {
+    double **p= o->p;
+    const int k= o->n_hor;
+<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+
+<<print_aux(0, used_by_final);>>
+<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+
+<<print_deriv(0, used_by_final);>>
+<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+
+<<print_grad('t\-\>cx, Fx, false);>>
+
+<<print_hess('t\-\>cxx, Fxx, false);>>
+
+    return 1;
+}
+
+int init_trajectory(traj_t *t, const tOptSet *o) {
+    if(!init_running(t->t, o)) return 0;
+    if(!init_final(&t->f, o)) return 0;
+    
+    return 1;
+}
+
+static int init_multipliers_running(const tOptSet *o) {
+    multipliersEl_t *m= o->multipliers.t;
+    int k, i;
+
+    for(k= 0; k<o->n_hor; k++, m++) {
+<<if  n_hle#0 then gentran(literal("        for(i= 0\; i<", eval(n_hle), "\; i++) { m->mu_le[i]= 0.0\; m->last_hle[i]= 0.0\; }", cr))>>
+
+<<if  n_hli#0 then gentran(literal("        for(i= 0\; i<", eval(n_hli), "\; i++) { m->mu_li[i]= 1.0\; m->last_hli[i]= 0.0\; }", cr))>>
+    }
+    
+    return 1;
+}
+
+static int init_multipliers_final(tOptSet *o) {
+    multipliersFin_t *m= &o->multipliers.f;
+    int i;
+
+<<if  n_hfe#0 then gentran(literal("    for(i= 0\; i<", eval(n_hfe), "\; i++) { m->mu_fe[i]= 0.0\; m->last_hfe[i]= 0.0\; }", cr))>>
+
+<<if  n_hfi#0 then gentran(literal("    for(i= 0\; i<", eval(n_hfi), "\; i++) { m->mu_fi[i]= 1.0\; m->last_hfi[i]= 0.0\; }", cr))>>
+    
+    return 1;
+}
+
+int init_multipliers(tOptSet *o) {
+    if(!init_multipliers_running(o)) return 0;
+    if(!init_multipliers_final(o)) return 0;
+    
+    return 1;
+}
+
+int init_opt(tOptSet *o) {
+    int i;
+    
+    for(i= 0; i<NUMBER_OF_THREADS+1; i++)
+        if(!init_trajectory(&o->trajectories[i], o)) return 0;
+
+    o->nominal= &o->trajectories[0];
+    for(i= 1; i<NUMBER_OF_THREADS+1; i++)
+    o->candidates[i-1]= &o->trajectories[i];
+    
+    if(!init_multipliers(o)) return 0;
+    
+    return 1;
+}
+
+static int update_multipliers_running(tOptSet *o, int init) {
+    trajEl_t *t= o->nominal->t;
+    multipliersEl_t *m= o->multipliers.t;
+    const double *x;
+    const double *u;
+    const double w_pen= o->w_pen_l;
+    double **p= o->p;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+
+    int increase_pen= 0;
+    int k, i;
+    
+    for(k= 0; k<o->n_hor; k++, m++, t++) {
+        x= t->x;
+        u= t->u;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("        ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+        
+<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hle do (
+  gentran(if fabs(eval(do_replacements(concat('hle_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hle_, i))))>fabs(m\-\>last_hle[eval(i-1)]) then increase_pen: 1),
+  ?ccurrind\*: 4,
+  gentran(lrsetq(m\-\>last_hle[i-1], do_replacements(concat('hle_, i)))),
+  gentran(literal(cr))
+))>>
+
+<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hli do (
+  gentran(if eval(do_replacements(concat('hli_, i)))>o\-\>tolConstraint and o\-\>w_pen_fact1*eval(do_replacements(concat('hli_, i)))>m\-\>last_hli[eval(i-1)] then increase_pen: 1),
+  ?ccurrind\*: 4,
+  gentran(lrsetq(m\-\>last_hli[i-1], do_replacements(concat('hli_, i)))),
+  gentran(literal(cr))
+))>>
+// TODO: maybe check test for sufficient complementarity reduction
+
+    if(init) return 1;
+<<block([i], for i: 1 thru n_hle do do_assign(concat(mu_le_, i), mu_le_next[i], 8, 0))>>
+
+// inequality constraints according to D. Ruxton: Differential dynamic programming applied to continuous optimal control problems with state variable inequality constraints
+<<block([i], for i: 1 thru n_hli do (
+  gentran(literal("    if(", eval(do_replacements(concat('hli_, i))), ">=0) {", cr)),
+  do_assign(concat('mu_li_, i), mu_li_A_next[i], 4*3, 0),
+  gentran(literal("    } else {", cr)),
+  do_assign(concat('mu_li_, i), mu_li_I_next[i], 4*3, 0),
+  gentran(literal("    }", cr, cr))
+))>>
+    }
+    
+    if(!init && increase_pen)
+        o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact1);
+        
+    return 1;
+}
+
+static int update_multipliers_final(tOptSet *o, int init) {
+    trajFin_t *t= &o->nominal->f;
+    multipliersFin_t *m= &o->multipliers.f;
+    const double *x= t->x;
+    const double w_pen= o->w_pen_f;
+    double **p= o->p;
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+    int increase_pen= 0;
+    int k= o->n_hor;
+
+<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfe do (
+  gentran(if fabs(eval(do_replacements(concat('hfe_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hfe_, i))))>fabs(m\-\>last_hfe[eval(i-1)]) then increase_pen: 1),
+  ?ccurrind\*: 4,
+  gentran(lrsetq(m\-\>last_hfe[i-1], do_replacements(concat('hfe_, i)))),
+  gentran(literal(cr))
+))>>
+
+<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfi do (
+  gentran(if eval(do_replacements(concat('hfi_, i)))>o\-\>tolConstraint and o\-\>w_pen_fact1*eval(do_replacements(concat('hfi_, i)))>m\-\>last_hfi[eval(i-1)] then increase_pen: 1),
+  ?ccurrind\*: 4,
+  gentran(lrsetq(m\-\>last_hfi[i-1], do_replacements(concat('hfi_, i)))),
+  gentran(literal(cr))
+))>>
+// TODO: maybe check test for sufficient complementarity reduction
+
+    if(!init && increase_pen)
+        o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact1);
+
+    if(init) return 1;
+<<block([i], for i: 1 thru n_hfe do do_assign(concat(mu_fe_, i), mu_fe_next[i], 4, 0))>>
+
+// inequality constraints according to D. Ruxton: Differential dynamic programming applied to continuous optimal control problems with state variable inequality constraints
+<<block([i], for i: 1 thru n_hfi do (
+  gentran(literal("    if(", eval(do_replacements(concat('hfi_, i))), ">=0) {", cr)),
+  do_assign(concat('mu_fi_, i), mu_fi_A_next[i], 4*2, 0),
+  gentran(literal("    } else {", cr)),
+  do_assign(concat('mu_fi_, i), mu_fi_I_next[i], 4*2, 0),
+  gentran(literal("    }", cr, cr))
+))>>
+
+    return 1;
+}
+
+int update_multipliers(tOptSet *o, int init) {
+    if(!update_multipliers_running(o, init)) return 0;
+    if(!update_multipliers_final(o, init)) return 0;
+
+    return 1;
+}
+
+int get_g_size() {
+<<if member(g, arrays) then gentran(literal("return(", eval(length(flatten(rest(arrayinfo(g), 2)))), ")\;", cr)) else gentran(return(0))>>
+}
+
+int calcG(double g[], const trajEl_t *t, int k, double **p) {
+    const double *x= t->x;
+    const double *u= t->u;
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
+    return(1);
+} 

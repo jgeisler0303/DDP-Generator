@@ -1,0 +1,26 @@
+if not(member('x, values)) then
+  error("vector of states x not defined");
+print("using states: ", x);
+if not(listp(x)) then
+  error("x must be a_work list of states");
+if not(member('u, values)) then
+  error("vector of inputs u not defined");
+if not(listp(u)) then
+  error("u must be a_work list of inputs");
+print("using inputs: ", u);
+
+if not(member('f, arrays)) then
+  error("state transition function f not defined");
+
+if not(flatten(rest(arrayinfo(f), 2))=sort(x)) then
+  error("elements of f must be indexed by elements of x");
+  
+if not(member('F, values)) then
+  error("final cost F not defined");
+if listp(F) then 
+  error("final cost F must not be a_work list");
+  
+if not(member('L, values)) then
+  error("running cost L not defined");
+if listp(L) then 
+  error("running cost L must not be a_work list");

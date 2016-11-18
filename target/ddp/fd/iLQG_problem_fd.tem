@@ -1,0 +1,46 @@
+<<gentran(literal("\/\* File generated form template iLQG_problem.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#ifndef ILQG_PROBLEM_H
+#define ILQG_PROBLEM_H
+
+#include <math.h>
+#include "mex.h"
+#ifndef  HAVE_OCTAVE
+#include "matrix.h"
+#endif
+
+#define N_X <<gentran(eval(nx))$>> 
+#define N_U <<gentran(eval(nu))$>> 
+
+#define sizeofQxx <<gentran(eval((nx*(nx+1))/2))$>> 
+#define sizeofQuu <<gentran(eval((nu*(nu+1))/2))$>> 
+#define sizeofQxu <<gentran(eval(nx*nu))$>> 
+
+typedef struct {
+    double x[N_X];
+    double u[N_U];
+    double lower[N_U];
+    double upper[N_U];
+    double lower_sign[N_U];
+    double upper_sign[N_U];
+    double lower_hx[N_X*N_U];
+    double upper_hx[N_X*N_U];
+    
+    double l[N_U];
+    double L[N_U*N_X]; 
+    double c;
+    double cx[N_X];
+    double cxx[sizeofQxx];
+    double cu[N_U];
+    double cuu[sizeofQuu];
+    double cxu[sizeofQxu];
+    double fx[N_X*N_X];
+    double fu[N_X*N_U];
+#if FULL_DDP
+    double fxx[N_X*sizeofQxx];
+    double fuu[N_X*sizeofQuu];
+    double fxu[N_X*sizeofQxu];
+#endif
+<<block([a], for a in aux_def do gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+} trajEl_t;
+
+#endif // ILQG_PROBLEM_H

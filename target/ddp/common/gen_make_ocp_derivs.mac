@@ -1,0 +1,40 @@
+f_: map(lambda([i_work], arrayapply(f, [i_work])), x);
+
+fx:make_array(flonum, nx, nx);
+fx_: flatten(args(jacobian(f_, x)));
+fillarray(fx, fx_);
+
+fu:make_array(flonum, nx, nu);
+fu_: flatten(args(jacobian(f_, u)));
+fillarray(fu, fu_);
+
+fxx:make_array(flonum, nx, nx, nx);
+fillarray(fxx, flatten(args(jacobian(fx_, x))));
+
+fuu:make_array(flonum, nx, nu, nu);
+fillarray(fuu, flatten(args(jacobian(fu_, u))));
+
+fxu:make_array(flonum, nx, nx, nu);
+fillarray(fxu, flatten(args(jacobian(fx_, u))));
+
+Fx:make_array(flonum, nx);
+fillarray(Fx, args(jacobian([F], x))[1]);
+
+Fxx:make_array(flonum, nx, nx);
+fillarray(Fxx, flatten(args(hessian(F, x))));
+
+Lx:make_array(flonum, nx);
+fillarray(Lx, args(jacobian([L], x))[1]);
+
+Lxx:make_array(flonum, nx, nx);
+fillarray(Lxx, flatten(args(hessian(L, x))));
+
+Lu:make_array(flonum, nu);
+fillarray(Lu, args(jacobian([L], u))[1]);
+
+Luu:make_array(flonum, nu, nu);
+fillarray(Luu, flatten(args(hessian(L, u))));
+
+Lxu:make_array(flonum, nx, nu);
+fillarray(Lxu, flatten(args(jacobian(args(jacobian([L], x))[1], u))));
+

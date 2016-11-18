@@ -13,14 +13,14 @@ p.limA= [-2  2];
 
 %% initial conditions
 T= 500;              % horizon
-t= (1:501)*p.h;
+t= (1:T+1)*p.h;
 x0= [1;1;pi*3/2;0];   % initial state
 u0= .1*randn(2,T);    % initial controls
 
 Op.max_iter= 200;
 
 tic
-[success, x, u, cost]= iLQGCar(x0, u0, p, Op);
+[success, x, u, cost]= ddpCar(x0, u0, p, Op);
 toc
 
 plotOptCar(t, x, u, [], [], p)

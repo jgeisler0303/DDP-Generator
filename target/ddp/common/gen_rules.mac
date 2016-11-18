@@ -1,0 +1,16 @@
+matchdeclare ([cond_diff_rule_cond, cond_diff_rule_true, cond_diff_rule_false, cond_diff_rule_diff], true);  
+cond_diff_rule: first(tellsimpafter ('diff ('if cond_diff_rule_cond then cond_diff_rule_true else cond_diff_rule_false, cond_diff_rule_diff), 'if cond_diff_rule_cond then diff (cond_diff_rule_true, cond_diff_rule_diff) else diff (cond_diff_rule_false, cond_diff_rule_diff)));
+
+matchdeclare(rule_idx, atom);
+matchdeclare(any_exp, true);
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), p_work[1][idx_work], sconcat("p_work.",p_work[1], [idx_work])]));
+make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), sconcat("p_work\.",p_work[1], "[", rule_idx, "]")]));*/
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), rule_idx]));*/
+/*make_param_rule(p_work):= (if p_work[2]=1 or p_work[2]=k then apply(defrule, [concat('rule, p_work[1]), p_work[1], concat(p_work\.,p_work[1])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), sconcat("p_work\.",p_work[1])[rule_idx]]));*/
+make_param_rule(p_work):= (if p_work[2]=1 then apply(defrule, [concat('rule, p_work[1]), p_work[1], arraymake('p, [p_work[4], 0])]) else apply(defrule, [concat('rule, p_work[1]), arraymake(p_work[1], [rule_idx]), arraymake('p, [p_work[4], rule_idx])]));
+map(make_param_rule, params);
+
+make_x_u_rules(xu, n_work):= block([i_work], for i_work:1 thru length(xu) do apply(defrule, [concat('rule, xu[i_work]), xu[i_work], arraymake(n_work, [i_work-1])]));
+make_x_u_rules(x, 'x);
+make_x_u_rules(u, 'u);
+defrule(rulenegexpo, any_exp^-1.0, any_exp^-1);

@@ -1,0 +1,19 @@
+batchload(problem_file);
+  
+load("gentran");
+
+batchload("../common/gen_validate_ddp.mac");
+batchload("../common/genenerator_main.mac");
+batchload("../common/gen_multipliers.mac");
+batchload("../common/gen_params_aux.mac");
+batchload("../common/gen_constraints.mac");
+batchload("../common/gen_make_ocp_derivs.mac");
+batchload("../common/gen_rules.mac");
+batchload("../common/gen_printers.mac");
+print(aux_def);
+print(get(aux_def[1][1], used_by_running));
+
+gentranin("../common/iLQG_problem.tem", [openw(sconcat(target_dir, "/iLQG_problem.h"))]);
+gentranin("../common/iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.c"))]);
+
+

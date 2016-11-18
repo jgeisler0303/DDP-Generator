@@ -79,13 +79,13 @@ void printParams(double **p, int k);
 void standard_parameters(tOptSet *o);
 int iLQG(tOptSet *o);
 char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
-int forward_pass(traj_t *c, tOptSet *o, double alpha, double *csum, int cost_only);
+int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
-int calc_derivs(tOptSet *o);
+int calc_derivs(const tOptSet *o);
 int init_opt(tOptSet *o);
 int update_multipliers(tOptSet *o, int init);
 int get_g_size();
-int calcG(double g[], trajEl_t *t, int k, double *p[]);
+int calcG(double g[], const trajEl_t *t, int k, double *p[]);
 
 static double max(double a, double b) {
     return (a > b)? a: b;

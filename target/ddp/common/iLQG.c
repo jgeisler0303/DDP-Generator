@@ -18,6 +18,7 @@
 #include "matrix.h"
 #endif
 
+#include "printMat.h"
 #include "iLQG.h"
 #include "line_search.h"
 #include "back_pass.h"

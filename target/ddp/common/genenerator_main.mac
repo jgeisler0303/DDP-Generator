@@ -1,0 +1,19 @@
+/* load(gentran)$ */
+ 
+remove(all, rule);
+
+gentranlang(c)$
+off('float)$
+off(gentranseg)$
+?ccurrind\*: 4$
+?clinelen\*: 1000$
+aux_prefix: aux_;
+daux_prefix: daux_;
+
+nx:length(x);
+nu:length(u);
+tri_matrix_mode: false;
+check_nan_inf_mode: true;
+
+time_var_symbols: append(x, u /*, [k]*/);
+is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
