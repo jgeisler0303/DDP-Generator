@@ -23,7 +23,8 @@ if ~exist('compile_switches', 'var')
     compile_switches= '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1';
 end
 
-build_file= fullfile(fileparts(env.problem_file), ['ddp' env.problem_title '_mp.' mexext]);
+mex_name= ['ddp' env.problem_title '_mp'];
+build_file= fullfile(fileparts(env.problem_file), [mex_name '.' mexext]);
 
 compile_opt= ['-DPRNT=mexPrintf ', compile_switches, ' -v -I. -I../common -I', env.build_dir, filesep];
 

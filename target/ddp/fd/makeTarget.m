@@ -1,4 +1,4 @@
-function makeTarget(env, compile_switches, force_gen)
+function mex_name= makeTarget(env, compile_switches, force_gen)
 
 skip_gen= false;
 if exist(fullfile(env.build_dir, 'iLQG_problem.h'), 'file') && (~exist('force_gen', 'var') || ~force_gen)
@@ -23,7 +23,8 @@ if ~exist('compile_switches', 'var')
     compile_switches= '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1';
 end
 
-build_file= fullfile(fileparts(env.problem_file), ['ddp' env.problem_title '_fd.' mexext]);
+mex_name= ['ddp' env.problem_title '_fd'];
+build_file= fullfile(fileparts(env.problem_file), [mex_name '.' mexext]);
 
 compile_opt= ['-DPRNT=mexPrintf ', compile_switches, ' -v -I. -I../common -I', env.build_dir, filesep];
 
@@ -56,8 +57,7 @@ xtracflags= strrep(xtracflags, char(10), ' ');
 setenv('XTRA_CFLAGS', xtracflags);
 
 compileMex(compile_files, env.build_dir, build_file, compile_opt, env.compile_errlog_file, env.is_matlab)
-%% move to make_target
-clear(['ddp' env.problem_title '_fd']);
+
 
 setenv('CFLAGS', old_cflags);
 setenv('CFLAGS', old_xtracflags);

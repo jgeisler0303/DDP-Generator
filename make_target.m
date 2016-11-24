@@ -41,6 +41,7 @@ if ~exist(env.build_dir, 'dir'), mkdir(env.build_dir); end
 old_dir= pwd;
 cd(target_dir);
 
-makeTarget(env, varargin{:});
+mex_name= makeTarget(env, varargin{:});
+clear(mex_name);
 
 cd(old_dir);
