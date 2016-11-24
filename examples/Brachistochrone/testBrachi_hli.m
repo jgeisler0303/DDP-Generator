@@ -1,6 +1,6 @@
 % setenv('MAXIMA', 'path to maxima');
 % addpath('../..');
-% make_iLQG('optDefBrachi', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=0', 1)
+% make_target('optDefBrachi_hli', 'ddp/plain', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=0', 1)
 
 
 %% parameters
@@ -24,7 +24,7 @@ p.ymin= [linspace(-1, -5, n), -4];
 x= linspace(0, 2*pi, n+1);
 u0= -ones(1,n);      % initial controls
 
-[success, y, u, cost]= iLQGBrachi_hli(x0, u0, p, Op);
+[success, y, u, cost]= ddpBrachi_hli(x0, u0, p, Op);
 
 plot(x, y, 'b', x, p.ymin, 'r')
 
