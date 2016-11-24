@@ -39,11 +39,9 @@
 int boxQP(double *H, const double *g, const double *lower, const double *upper, double *x, double *Hfree, double *L, double *grad, double *grad_clamped, double *search, int *is_clamped, int *n_free_, double *invHfree, const int n) {
     int i, j, iter, i_free, j_free;
     double oldvalue= 0.0;
-    int res= 0;
     double gnorm= 0.0;
     int nfactor= 0;
-    double trace= 0.0;
-    double value, d1, mod_chol_regu, sdotg;
+    double value, d1, sdotg;
     int all_clamped, clamps_changed, n_free, was_clamped;
     double step, vc;
     int nstep;
