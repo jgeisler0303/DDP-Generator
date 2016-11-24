@@ -76,6 +76,7 @@ void standard_parameters(tOptSet *o) {
     o->w_pen_max_f= INF;
     o->w_pen_fact1= 4.0; // 4...10 Bertsekas p. 123
     o->w_pen_fact2= 1.0;
+    o->h_fd= 7.6294e-06;
 }
 
 char setOptParamErr_not_scalar[]= "parameter must be scalar";
@@ -209,6 +210,12 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<1.0)
             return setOptParamErr_lt_one;
         o->w_pen_fact2= value[0];
+    } else if(strcmp(name, "h_fd")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->h_fd= value[0];
     } else {
         return setOptParamErr_no_such_parameter;
     }
@@ -223,7 +230,7 @@ void *bp_thread_function(void *o);
 #endif
 
 int iLQG(tOptSet *o) {
-    int iter, diverge, backPassDone, fwdPassDone;
+    int iter, backPass, fwdPass= -2;
     int newDeriv;
     double dlambda= o->dlambdaInit;
 #if MULTI_THREADED  
@@ -247,6 +254,7 @@ int iLQG(tOptSet *o) {
 #else
             if(!calc_derivs(o)) {
                 TRACE(("Calculating derivatives failed.\n"));
+                backPass= -2;
                 break;
             } else {
 //                 TRACE(("\n"));
@@ -257,9 +265,9 @@ int iLQG(tOptSet *o) {
         }
             
         // ====== STEP 2: backward pass, compute optimal control law and cost-to-go
-        backPassDone= 0;
+        backPass= 0;
 //         TRACE(("Back pass:\n"));
-        while(!backPassDone) {
+        while(!backPass) {
 #if MULTI_THREADED  
             pthread_create(&bp_thread, NULL, &bp_thread_function, o);
             pthread_join(bp_thread, NULL);
@@ -279,7 +287,7 @@ int iLQG(tOptSet *o) {
                 TRACE(("Back pass derivatives failed.\n"));
 #endif
             } else {
-                backPassDone= 1;
+                backPass= 1;
 //                 TRACE(("...done\n"));
             }
         }
@@ -304,15 +312,18 @@ int iLQG(tOptSet *o) {
         }
     
         // ====== STEP 3: line-search to find new control sequence, trajectory, cost
-        if(backPassDone)
-            fwdPassDone= line_search(o, iter);
+        if(backPass)
+            fwdPass= line_search(o, iter);
         else
+            break;
+
+        if(fwdPass==-2)
             break;
         
         // ====== STEP 4: accept (or not), draw graphics
-        if(fwdPassDone) {
+        if(fwdPass>0) {
             if(o->debug_level>=1)
-                TRACE(("iter: %-3d  cost: %-9.6g  reduction: %-9.3g  gradient: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen_l: %-9.3g w_pen_f: %-9.3g\n", iter+1, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen_l, o->w_pen_f));
+                TRACE(("iter: %-3d  nr ls: %2d, cost: %-9.6g  red: %-9.3g  grad: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen: %-9.3g / %-9.3g\n", iter+1, fwdPass, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen_l, o->w_pen_f));
             
             // decrease lambda
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
@@ -365,14 +376,19 @@ int iLQG(tOptSet *o) {
     
     o->iterations= iter;
     
-    if(!backPassDone) {
+    if(backPass==0) {
         if(o->debug_level>=1)
-            TRACE(("\nEXIT: no descent direction found.\n"));
+            TRACE(("\nEXIT: no descent direction found.\n\n"));
         
         return 0;    
     } else if(iter>=o->max_iter) {
         if(o->debug_level>=1)
-            TRACE(("\nEXIT: Maximum iterations reached.\n"));
+            TRACE(("\nEXIT: Maximum iterations reached.\n\n"));
+        
+        return 0;
+    } else if(fwdPass==-2 || backPass==-2) {
+        if(o->debug_level>=1)
+            TRACE(("\nEXIT: inf or nan encountered.\n\n"));
         
         return 0;
     }

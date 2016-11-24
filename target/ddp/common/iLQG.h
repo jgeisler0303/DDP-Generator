@@ -7,7 +7,7 @@
 
 #include "iLQG_problem.h"
 
-#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL}
+#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, {NULL}}
 
 #ifndef PRNT
 #define PRNT printf
@@ -67,6 +67,8 @@ typedef struct optSet {
     double w_pen_fact1;
     double w_pen_fact2;
     
+    double h_fd;
+    
     traj_t *nominal;
     traj_t *candidates[NUMBER_OF_THREADS]; 
     
@@ -94,6 +96,8 @@ static double max(double a, double b) {
 static double min(double a, double b) {
     return (a < b)? a: b;
 }
+
+
 extern int n_params;
 extern int n_vars;
 extern tParamDesc *paramdesc[];

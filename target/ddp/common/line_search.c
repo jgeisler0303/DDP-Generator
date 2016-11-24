@@ -29,10 +29,10 @@
 #define printVec_(x) do { if (DEBUG_FORWARDPASS) printVec x; } while (0)
 #define printMat_(x) do { if (DEBUG_FORWARDPASS) printMat x; } while (0)
    
-
+// return number of line searches if successfull, -1 if max number of line searches reached, -2 if inf or nan encountered
 int line_search(tOptSet *o, int iter) {
     double expected, z, alpha, dcost, cnew;
-    int i, success;
+    int i, success, ret= 0;
     
     for(i= 0; i < o->n_alpha; i++) {
         alpha= o->alpha[i];
@@ -55,24 +55,27 @@ int line_search(tOptSet *o, int iter) {
         } else {
             if(o->debug_level>=2) {
                 TRACE(("line search: %-3d: prediction or objective failed with inf or nan\n", i+1));
+                ret= -2;
+                break;
             }
         }
     }
     
-    if(o->debug_level>=2) {
-        if(!success) {
+    if(i>=o->n_alpha) {
+        if(o->debug_level>=2)
             TRACE(("max number of line searches reached\n"));
-        } else {
+        ret= -1;
+    } else if(ret!=-2) {
 //             TRACE(("iter: %-3d  alpha: %-9.6g cost: %-9.6g  reduction: %-9.3g  z: %-9.3g\n", iter, alpha, o->cost, dcost, z));
-        }
+        ret= i+1;
     }
     
-    if(o->log_linesearch!=NULL) o->log_linesearch[iter]= i+1;
+    if(o->log_linesearch!=NULL) o->log_linesearch[iter]= ret;
     if(o->log_z!=NULL) o->log_z[iter]= z;
     if(o->log_cost!=NULL) o->log_cost[iter]= cnew;
     o->new_cost= cnew;
     o->dcost= dcost;
     o->expected= expected;
 
-    return success;
+    return ret;
 }
