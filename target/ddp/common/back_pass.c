@@ -54,27 +54,10 @@ int back_pass(tOptSet *o) {
     o->dV[0]= 0.0;
     o->dV[1]= 0.0;
     
-#if MULTI_THREADED  
-    pthread_mutex_lock(&step_mutex);
-        while(step_calc_done>N)
-            pthread_cond_wait(&next_step_condition, &step_mutex);
-    pthread_mutex_unlock(&step_mutex);
-    if(step_calc_done<0)
-        return 2;
-#endif
-
     memcpy(Vx, f->cx, sizeof(double)*N_X);
     memcpy(Vxx, f->cxx, sizeof(double)*sizeofQxx);
 
     for(k= N-1; k>=0; k--, t--) {
-#if MULTI_THREADED  
-        pthread_mutex_lock(&step_mutex);
-            while(step_calc_done>k)
-                pthread_cond_wait(&next_step_condition, &step_mutex);
-        pthread_mutex_unlock(&step_mutex);
-        if(step_calc_done<0)
-            return 2;
-#endif
 //         TRACE(("k: %d\n", k));
 //         TRACE(("Qu=\n"));
         // Qu  = cu(:,i)      + fu(:,:,i)'*Vx(:,i+1);

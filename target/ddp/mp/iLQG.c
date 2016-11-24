@@ -38,13 +38,6 @@
 
 
 double default_alpha[]= {1.0, 0.3727594, 0.1389495, 0.0517947, 0.0193070, 0.0071969, 0.0026827, 0.0010000};
-#if MULTI_THREADED  
-pthread_mutex_t step_mutex= PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t  next_step_condition= PTHREAD_COND_INITIALIZER;
-int step_calc_done;
-int derivs_result;
-int bp_result;
-#endif
 
 void printParams(double **p, int k) {
     int i;
@@ -261,15 +254,6 @@ int iLQG(tOptSet *o) {
             }
             newDeriv= 0;
         }
-        
-#if MULTI_THREADED               
-        pthread_join(derivs_thread, NULL);
-        newDeriv= 0;
-        if(!derivs_result) {
-            TRACE(("Calculating derivatives failed.\n"));
-            break;
-        }
-#endif
         
         // check for termination due to small gradient
         // TODO: add constraint tolerance check

@@ -13,13 +13,6 @@
 #define PRNT printf
 #endif
 
-#ifndef MULTI_THREADED
-#define MULTI_THREADED 0
-#endif
-#if MULTI_THREADED  
-#include <pthread.h>
-#endif
-
 #ifndef NUMBER_OF_THREADS
 #define NUMBER_OF_THREADS 1
 #endif
@@ -101,12 +94,6 @@ static double min(double a, double b) {
 extern int n_params;
 extern int n_vars;
 extern tParamDesc *paramdesc[];
-
-#if MULTI_THREADED  
-extern pthread_mutex_t step_mutex;
-extern pthread_cond_t  next_step_condition;
-extern int step_calc_done;
-#endif
 
 
 #endif /* ILQG_H */

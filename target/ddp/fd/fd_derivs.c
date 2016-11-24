@@ -7,25 +7,12 @@ int calc_derivs(tOptSet *o) {
 
     if(!calc_deriv(t, k, o->p, N)) return 0;
     
-#if MULTI_THREADED   
-    pthread_mutex_lock(&step_mutex);
-    step_calc_done= N;
-    pthread_cond_signal(&next_step_condition);
-    pthread_mutex_unlock(&step_mutex);
-#endif
 
     t--;
     for(k= N-1; k>=0; k--, t--) {
         if(!calc_deriv(t, k, o->p, N)) return 0;
         
         limitsU(t, k, o->p, N);
-
-#if MULTI_THREADED   
-        pthread_mutex_lock(&step_mutex);
-        step_calc_done= k;
-        pthread_cond_signal(&next_step_condition);
-        pthread_mutex_unlock(&step_mutex);
-#endif
     }
     return 1;
 }

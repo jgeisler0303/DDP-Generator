@@ -51,27 +51,10 @@ int back_pass(tOptSet *o) {
     o->dV[0]= 0.0;
     o->dV[1]= 0.0;
     
-#if MULTI_THREADED  
-    pthread_mutex_lock(&step_mutex);
-        while(step_calc_done>N)
-            pthread_cond_wait(&next_step_condition, &step_mutex);
-    pthread_mutex_unlock(&step_mutex);
-    if(step_calc_done<0)
-        return 2;
-#endif
-
     Vx= f->cx;
     Vxx= f->cxx;
 
     for(k= N-1; k>=0; k--, t--) {
-#if MULTI_THREADED  
-        pthread_mutex_lock(&step_mutex);
-            while(step_calc_done>k)
-                pthread_cond_wait(&next_step_condition, &step_mutex);
-        pthread_mutex_unlock(&step_mutex);
-        if(step_calc_done<0)
-            return 2;
-#endif
         Qu= t->cu + Vx * t->fu;
         Qx= t->cx + Vx * t->fx;
         Qxu= t->cxu + t->fx.transpose() * Vxx.selfadjointView<Upper>() * t->fu;

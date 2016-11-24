@@ -197,25 +197,12 @@ int calc_derivs(const tOptSet *o) {
     if(!calcFAuxDeriv(f, mf, o)) return 0;
     if(!bp_derivsF(f, N, o->p)) return 0;
     
-#if MULTI_THREADED   
-    pthread_mutex_lock(&step_mutex);
-    step_calc_done= N;
-    pthread_cond_signal(&next_step_condition);
-    pthread_mutex_unlock(&step_mutex);
-#endif
-
     for(k= N-1; k>=0; k--, t--, m--) {
         if(!calcLAuxDeriv(t, m, k, o)) return 0;
         if(!bp_derivsL(t, k, o->p)) return 0;
         
         limitsU(t, k, o->p, N);
 
-#if MULTI_THREADED   
-        pthread_mutex_lock(&step_mutex);
-        step_calc_done= k;
-        pthread_cond_signal(&next_step_condition);
-        pthread_mutex_unlock(&step_mutex);
-#endif
     }
     return 1;
 }
