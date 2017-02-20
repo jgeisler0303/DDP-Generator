@@ -1,6 +1,8 @@
 #ifndef ILQG_H
 #define ILQG_H
 
+#include <stdio.h>
+
 #ifndef FULL_DDP
     #define FULL_DDP 1
 #endif
@@ -11,7 +13,7 @@
 
 #include "iLQG_problem.h"
 
-#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, {NULL}}
+#define INIT_OPTSET {0}
 
 #ifndef PRNT
 #define PRNT printf
@@ -26,15 +28,16 @@
 
 
 typedef struct paramDesc {
-  char *name;
-  int size;
-  int is_var;
+  const char *name;
+  const int size;
+  const int is_var;
 } tParamDesc;
 
 typedef struct optSet {
     int n_hor;
     int debug_level;
-    double *x0, new_cost, cost, dcost, lambda, g_norm, expected;
+    VectorX x0;
+    double new_cost, cost, dcost, lambda, g_norm, expected;
     double **p;
     const double *alpha;
     int n_alpha;
@@ -72,13 +75,15 @@ typedef struct optSet {
     traj_t trajectories[NUMBER_OF_THREADS+1];
     
     multipliers_t multipliers;
+    
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } tOptSet;
 
 void printParams(double **p, int k);
 void standard_parameters(tOptSet *o);
-int iLQG(tOptSet *o);
+int iterate(tOptSet *o);
 char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
-int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only);
+int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(const tOptSet *o);
 int init_opt(tOptSet *o);

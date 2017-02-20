@@ -1,7 +1,7 @@
 #ifndef BACKPASS_H
 #define BACKPASS_H
 
-#include "iLQG.h"
+#include "iLQG.hpp"
 #include <Eigen/Dense>
 
 

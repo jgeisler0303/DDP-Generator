@@ -62,8 +62,8 @@ int back_pass(tOptSet *o, int newDeriv) {
     for(int k= N; k>=0; k--) {
         if(failed_k) continue;
         
-        trajEl_t *t= o->nominal->t + k;
-        trajFin_t *f= &o->nominal->f;
+        trajEl_t *const __restrict__ t= o->nominal->t + k;
+        trajFin_t *const __restrict__ f= &o->nominal->f;
         if(newDeriv) {
             if(k==N) {
                 if(!calc_derivsF(o, &o->nominal->f, &o->multipliers.f)) {

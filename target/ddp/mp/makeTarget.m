@@ -1,4 +1,4 @@
-function makeTarget(env, compile_switches, force_gen)
+function mex_name= makeTarget(env, compile_switches, force_gen)
 
 skip_gen= false;
 if exist(fullfile(env.build_dir, 'iLQG_problem.h'), 'file') && (~exist('force_gen', 'var') || ~force_gen)

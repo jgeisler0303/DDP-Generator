@@ -1,0 +1,100 @@
+<<gentran(literal("\/\* File generated form template iLQG_problem.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#ifndef ILQG_PROBLEM_H
+#define ILQG_PROBLEM_H
+
+#include <cmath>
+#include <limits>
+#include <Eigen/Dense>
+
+#define isNANorINF(v) (!std::isfinite(v))
+#define INF (std::numeric_limits<double>::infinity())
+
+#define N_X <<gentran(eval(nx))$>> 
+#define N_U <<gentran(eval(nu))$>> 
+
+typedef Eigen::Matrix<double, N_X, N_X> MatrixXX;
+typedef Eigen::Matrix<double, N_U, N_U> MatrixUU;
+typedef Eigen::Matrix<double, N_X, N_U> MatrixXU;
+typedef Eigen::Matrix<double, N_U, N_X> MatrixUX;
+typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor, N_U, N_U> MatrixUU_dyn;
+typedef Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor, N_U, N_X> MatrixUX_dyn;
+typedef Eigen::Matrix<double, N_X, 1> VectorX;
+typedef Eigen::Matrix<double, N_U, 1> VectorU;
+typedef Eigen::Matrix<double, Eigen::Dynamic, 1, Eigen::ColMajor, N_U, 1> VectorU_dyn;
+typedef Eigen::Matrix<int, N_X, 1> VectorX_int;
+typedef Eigen::Matrix<int, N_U, 1> VectorU_int;
+
+typedef struct {
+    VectorX x;
+    VectorU u;
+    VectorU lower;
+    VectorU upper;
+    VectorU lower_sign;
+    VectorU upper_sign;
+    MatrixXU lower_hx;
+    MatrixXU upper_hx;
+    
+    VectorU l;
+    MatrixUX L; 
+    double c;
+    VectorX cx;
+    MatrixXX cxx;
+    VectorU cu;
+    MatrixUU cuu;
+    MatrixXU cxu;
+    MatrixXX fx;
+    MatrixXU fu;
+#if FULL_DDP
+    MatrixXX fxx[N_X];
+    MatrixUU fuu[N_X];
+    MatrixXU fxu[N_X];
+#endif
+<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} trajEl_t;
+
+typedef struct {
+    VectorX x;
+
+    double c;
+    VectorX cx;
+    MatrixXX cxx;
+
+<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+<<block([a], for a in aux_deriv do if get(a[1], used_by_final) then gentran(literal("    double ", eval(a[1]), "\;", cr)))>>
+
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} trajFin_t;
+
+typedef struct {
+    trajEl_t* t;
+    trajFin_t f;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+} traj_t;
+
+typedef struct {
+<<if n_hle#0 then gentran(literal("    double mu_le[", eval(n_hle), "]\;", cr))>>
+<<if n_hle#0 then gentran(literal("    double last_hle[", eval(n_hle), "]\;", cr))>>
+
+<<if n_hli#0 then gentran(literal("    double mu_li[", eval(n_hli), "]\;", cr))>>
+<<if n_hli#0 then gentran(literal("    double last_hli[", eval(n_hli), "]\;", cr))>>
+} multipliersEl_t;
+
+typedef struct {
+<<if n_hfe#0 then gentran(literal("    double mu_fe[", eval(n_hfe), "]\;", cr))>>
+<<if n_hfe#0 then gentran(literal("    double last_hfe[", eval(n_hfe), "]\;", cr))>>
+
+<<if n_hfi#0 then gentran(literal("    double mu_fi[", eval(n_hfi), "]\;", cr))>>
+<<if n_hfi#0 then gentran(literal("    double last_hfi[", eval(n_hfi), "]\;", cr))>>
+} multipliersFin_t;
+
+typedef struct {
+    multipliersEl_t* t;
+    multipliersFin_t f;
+} multipliers_t;
+
+#endif // ILQG_PROBLEM_H
