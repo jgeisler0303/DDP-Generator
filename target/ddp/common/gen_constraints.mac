@@ -1,6 +1,7 @@
 if member(h, arrays) then
 block([i_work],
   h_: map(lambda([i_work], arrayapply(h, [i_work])), flatten(rest(arrayinfo(h), 2))),
+  
   nh: length(h_),
   hu: make_array(flonum, nh, nu),
   hu_: flatten(args(jacobian(h_, u))),
@@ -11,10 +12,10 @@ block([i_work],
   fillarray(hx, hx_),
 
   for i_work: 1 thru nh do (
-    hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+    hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
     if not(apply('freeof, endcons(h_[i_work], listify(setdifference(setify(depends_on_u_aux), setify(u)))))) then
       error("constaint (", h_[i_work], ") may only depend directly on one input"),
-      
+
     if apply("+", map(lambda([x], if equal(x, 0) then 0 else 1), hu_))#1 then
       error("constaint (", h_[i_work], ") may depend on only one input. hu: ", hu_),
      
