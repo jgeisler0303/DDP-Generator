@@ -2,7 +2,7 @@
 #include "iLQG.h"
 #include "matMult.h"
 
-#define mcond(cond, a, dummy, b) (cond)? a: b
+#define mcond(cond, a, dummy, b) ((cond)? a: b)
 
 <<tri_matrix_mode: true;>>
 

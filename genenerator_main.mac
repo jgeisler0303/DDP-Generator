@@ -545,7 +545,7 @@ block([i_work],
   fillarray(hx, hx_),
 
   for i_work: 1 thru nh do (
-    hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+    hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
     if not(apply('freeof, endcons(h_[i_work], listify(setdifference(setify(depends_on_u_aux), setify(u)))))) then
       error("constaint (", h_[i_work], ") may only depend directly on one input"),
       
@@ -559,7 +559,7 @@ block([i_work],
 else nh: 0$
 
 do_clamp(i_work):= block([hu_, idx_work, sign_, lim],
-  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
     
   idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
   sign_: apply("+", hu_),
@@ -579,7 +579,7 @@ do_clamp(i_work):= block([hu_, idx_work, sign_, lim],
 );
 
 do_limits(vn, i_work):= block([hu_, idx_work, sign_, lim],
-  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
   idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
   sign_: apply("+", hu_),
   lim: h_[i_work] - sign_*u[idx_work],
@@ -603,7 +603,7 @@ do_hx(hx_name, h_sign_name, i_work, n_ind):= block([j_work, hx_],
   for j_work: 0 thru nx-1 do
     do_assign(apply("'", [arraymake(hx_name, [j_work])]), hx[i_work-1, j_work], n_ind),
     
-  hu_: makelist(subvar(hu, i_work-1, i_), i_, 0, nu-1),  
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),  
   do_assign(apply("'", [arraymake(h_sign_name, [0])]), apply("+", hu_), n_ind)
  
 );
