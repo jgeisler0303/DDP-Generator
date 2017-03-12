@@ -25,7 +25,6 @@ if not(member('L, values)) then
   error("running cost L not defined");
 if listp(L) then 
   error("running cost L must not be a_work list");
-  
  
 gentranlang(c)$
 off('float)$
@@ -67,8 +66,10 @@ if member(hfe, arrays) then block([i_work],
   mu_hfe_all: []
 );
 
-matchdeclare ([cond_diff_rule_cond, cond_diff_rule_true, cond_diff_rule_false, cond_diff_rule_diff], true);  
-cond_diff_rule: first(tellsimpafter ('diff ('if cond_diff_rule_cond then cond_diff_rule_true else cond_diff_rule_false, cond_diff_rule_diff), 'if cond_diff_rule_cond then diff (cond_diff_rule_true, cond_diff_rule_diff) else diff (cond_diff_rule_false, cond_diff_rule_diff)));
+matchdeclare ([cond_diff_rule_cond, cond_diff_rule_true, cond_diff_rule_false], all, cond_diff_rule_diff, symbolp);
+diff_ifthenelse_prototype: 'diff (if cond_diff_rule_cond then cond_diff_rule_true else cond_diff_rule_false, cond_diff_rule_diff);
+cond_diff_rule: first(tellsimp (''diff_ifthenelse_prototype, apply ("if", [cond_diff_rule_cond, diff (cond_diff_rule_true, cond_diff_rule_diff), true, diff (cond_diff_rule_false, cond_diff_rule_diff)])));
+
 
 if member(hfi, arrays) then block([i_work],
   hfi_: map(lambda([i_work], arrayapply(hfi, [i_work])), flatten(rest(arrayinfo(hfi), 2))),
