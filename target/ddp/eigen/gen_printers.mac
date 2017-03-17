@@ -1,0 +1,182 @@
+do_replacements(e_work):= block([u, x, p_work],
+  /* print("e_work: ", e_work), */
+  apply(apply1, cons('e_work, delete(cond_diff_rule, rules)))
+);
+
+do_assign(n_work, e_work, n_ind, [testdef]):= block([ret, prnts], (
+  ?ccurrind\*: n_ind,
+  /* print("e_work: ", e_work, "rep: ", do_replacements(e_work)),*/
+  gentran(lrsetq(eval(n_work), apply1(scanmap('float, do_replacements(e_work)), rulenegexpo))),
+  if length(testdef)>0 and check_nan_inf_mode then (
+    ret: testdef[1],
+    prnts:map(lambda([v], PRNT(sconcat("\"        ", v,  "= %g\\n\""), v)), do_replacements(listofvars(e_work))),
+    prnts: buildq([e: prnts], ","(splice(e))),
+    gentran(if 'isNANorINF(eval(n_work)) then ('PRNT(literal("\"    @k %d: ", eval(n_work),  " in line %d is nan or inf: %g\\n\", k, __LINE__-3"), eval(n_work)), eval(prnts), return(eval(ret))))
+  )
+));
+
+all_zero(v_work):= (apply("and", map(lambda([i_work], i_work=0.0), listarray(v_work))));
+print_def(n_work, v_work):= (gentran(literal(eval(if all_zero(v_work) then "#undef" else "#define")), " ", eval(n_work)));
+
+print_aux([time_var_test]):= block([a_work, i_work:1, skip_gen], /* TODO: change time_var_test to array of flags */
+  for a_work in aux_def do (
+    skip_gen: false,
+    if length(time_var_test)>=1 then (
+      if time_var_test[1]=0 and is_time_var(a_work[2]) then
+        skip_gen: true,
+      if time_var_test[1]=1 and (not(is_time_var(a_work[2])) or does_depend_on_u(a_work[2])) then
+        skip_gen: true,
+      if time_var_test[1]=2 and (not(is_time_var(a_work[2])) or not(does_depend_on_u(a_work[2]))) then
+        skip_gen: true
+    ),
+    if length(time_var_test)>=2 then (
+      if not(get(a_work[1], time_var_test[2])) then skip_gen: true
+    ),
+    if not(skip_gen) then (
+      gentran(literal("// aux_def[", eval(i_work), "]", cr)),
+      if atom(float(a_work[2])) then
+        do_assign(concat(aux_prefix, a_work[1]), a_work[2], 4)
+      else
+        do_assign(concat(aux_prefix, a_work[1]), a_work[2], 4, 0)
+    ),
+    i_work: i_work+1
+  )
+)$
+      
+print_deriv([time_var_test]):= block([a_work, i_work:1, skip_gen],
+  for a_work in aux_deriv do (
+    skip_gen: false,
+    if length(time_var_test)>=1 then (
+      if time_var_test[1]=0 and is_time_var(a_work[2]) then
+        skip_gen: true,    
+      if time_var_test[1]=1 and not(is_time_var(a_work[2])) then
+        skip_gen: true
+    ),
+    if length(time_var_test)>=2 then (
+      if not(get(a_work[1], time_var_test[2])) then skip_gen: true
+    ),
+    if not(skip_gen) then (
+      gentran(literal("// aux_deriv[", eval(i_work), "]", cr)),
+      if atom(float(a_work[2])) then
+        do_assign(concat(daux_prefix, a_work[1]), a_work[2], 4)
+      else
+        do_assign(concat(daux_prefix, a_work[1]), a_work[2], 4, 0)
+    ),
+    i_work: i_work+1
+  )
+)$
+      
+print_jaco(n_work, v_work, [time_var_test]):= block([c_work,r_work,fx,fu],
+  for c_work:0 thru arrayinfo(v_work)[3][2] do (
+    gentran(literal("// d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i]/d ", eval(substring(sreverse(string(n_work)), 1, 2)), "[", eval(c_work), "]", cr)),
+    for r_work:0 thru arrayinfo(v_work)[3][1] do (
+      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work]) then
+        if atom(float(v_work[r_work, c_work])) then
+            do_assign(apply("'", [funmake(n_work, [r_work, c_work])]), v_work[r_work, c_work], 4)
+        else
+            do_assign(apply("'", [funmake(n_work, [r_work, c_work])]), v_work[r_work, c_work], 4, 0)
+    )
+  )
+);
+      
+print_jaco2(n_work, v_work, [time_var_test]):= block([d3,c_work,r_work, fxx, fuu, fxu, max_row_index, ar_],
+  for r_work:0 thru arrayinfo(v_work)[3][1] do (
+    gentran(literal("// d^2", eval(substring(sreverse(string(n_work)), 3, 4)), "[", eval(r_work), "]/d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i] d", eval(substring(sreverse(string(n_work)), 1, 2)), "[j]", cr)),    
+  
+    for d3:0 thru arrayinfo(v_work)[3][3] do (
+      if arrayinfo(v_work)[3][2]=arrayinfo(v_work)[3][3] and tri_matrix_mode then
+        max_row_index: d3
+      else
+        max_row_index: arrayinfo(v_work)[3][2],
+      gentran(literal("// j= ", eval(d3), cr)),    
+      for c_work:0 thru max_row_index do (
+        if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work, d3]) then (
+          if atom(float(v_work[r_work, c_work, d3])) then
+            do_assign(apply("'", [funmake(arraymake(n_work, [r_work]), [c_work, d3])]), v_work[r_work, c_work, d3], 4)
+          else
+            do_assign(apply("'", [funmake(arraymake(n_work, [r_work]), [c_work, d3])]), v_work[r_work, c_work, d3], 4, 0)
+        )
+        /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work, d3], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work, d3]), literal("\;", cr))*/
+      )
+    )
+  )  
+);
+
+print_grad(n_work, v_work, [time_var_test]):= block([r_work, Vx, Qx, Qu, Lx, Lu, Fx],
+  for r_work:0 thru arrayinfo(v_work)[3][1] do
+      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work]) then (
+        if atom(float(v_work[r_work])) then
+            do_assign(apply("'", [funmake(n_work, [r_work])]), v_work[r_work], 4)
+        else
+            do_assign(apply("'", [funmake(n_work, [r_work])]), v_work[r_work], 4, 0)
+      )
+    /*gentran(literal("    ", eval(n_work), "["), eval(r_work), literal("]= "), eval(v_work[r_work]), literal("\;", cr))*/
+);
+
+print_hess(n_work, v_work, [time_var_test]):= block([c_work,r_work, Lxx, Luu, Lxu, Qxx, Quu, Qxu, Fxx, Vxx, max_row_index],
+  for c_work:0 thru arrayinfo(v_work)[3][2] do (
+    if arrayinfo(v_work)[3][1]=arrayinfo(v_work)[3][2] and tri_matrix_mode then
+      max_row_index: c_work
+    else
+      max_row_index: arrayinfo(v_work)[3][1],
+    for r_work:0 thru  max_row_index do (
+      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work]) then (
+        if atom(float(v_work[r_work, c_work])) then
+          do_assign(apply("'", [funmake(n_work, [r_work, c_work])]), v_work[r_work, c_work], 4)
+        else
+          do_assign(apply("'", [funmake(n_work, [r_work, c_work])]), v_work[r_work, c_work], 4, 0)
+      )
+      /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work]), literal("\;", cr))*/
+    )
+  )
+);
+
+do_clamp(i_work):= block([hu_, idx_work, sign_, lim],
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
+    
+  idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
+  sign_: apply("+", hu_),
+  lim: h_[i_work] - sign_*u[idx_work],
+  if sign_>0 then
+    lim: -lim,
+
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
+  do_assign('limit, lim, 4),
+  
+  if sign_>0 then
+    gentran(eval(if 'u[idx_work-1]>'limit then lrsetq(u[idx_work-1], limit)))
+  else
+    gentran(eval(if 'u[idx_work-1]<'limit then lrsetq(u[idx_work-1], limit))),
+    
+ gentran(literal(cr))
+);
+
+do_limits(vn, i_work):= block([hu_, idx_work, sign_, lim],
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),
+  idx_work: first(sublist_indices(hu_, lambda([x], not(equal(x, 0))))),
+  sign_: apply("+", hu_),
+  lim: h_[i_work] - sign_*u[idx_work],
+  if sign_>0 then
+    lim: -lim,
+
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
+  do_assign('limit, lim, 4),
+  
+  if sign_>0 then (
+    gentran(eval(if concat(vn, upper)[idx_work-1]>'limit then (eval(concat(vn, upper)[idx_work-1]): limit, lrsetq('upper_idx[idx_work-1], i_work-1))))
+  ) else (
+    gentran(eval(if concat(vn, lower)[idx_work-1]<'limit then (eval(concat(vn, lower)[idx_work-1]): limit, lrsetq('lower_idx[idx_work-1], i_work-1))))
+  ),  
+  
+  gentran(literal(cr))
+);
+
+do_hx(hx_name, h_sign_name, i_work, n_ind):= block([j_work, hx_],
+  gentran(literal("// constraint h[", eval(flatten(rest(arrayinfo(h), 2))[i_work]), "]= ", eval(h_[i_work]), cr)),
+  for j_work: 0 thru nx-1 do
+    do_assign(apply("'", [arraymake(hx_name, [j_work])]), hx[i_work-1, j_work], n_ind),
+    
+  hu_: makelist(hu[i_work-1, i_], i_, 0, nu-1),  
+  do_assign(apply("'", [arraymake(h_sign_name, [0])]), apply("+", hu_), n_ind)
+ 
+);
