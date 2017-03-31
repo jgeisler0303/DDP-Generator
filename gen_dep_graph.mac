@@ -1,0 +1,230 @@
+load(graphs)$
+
+get_index(dg_s, dg_dg):= block([dg_i],
+    dg_i: sublist_indices(dg_dg@syms, lambda([x], x=dg_s)),
+    if length(dg_i)>1 then
+        error("something went wrong. the symbol list contains the symbol ", dg_s, " more than once"),
+    if length(dg_i)<1 then
+        -1
+    else
+        dg_i[1]
+)$
+
+add_symbol(dg_s, dg_dg):= block([dg_i],
+    dg_i: get_index(dg_s, dg_dg),
+    if dg_i<0 then (
+        dg_i: length(dg_dg@syms)+1,
+        dg_dg@syms: append(dg_dg@syms, [dg_s]),
+        if member(dg_s, values) then
+            dg_dg@aux_vars: endcons(dg_s, dg_dg@aux_vars)
+        else if not member(dg_s, arrays) and not member(dg_s, x)  and not member(dg_s, u) then
+            dg_dg@all_params: endcons(dg_s, dg_dg@all_params),
+            
+        add_vertex(dg_i, dg_dg@g),
+        set_vertex_label (dg_i, dg_s, dg_dg@g)
+    ),
+    
+    dg_i
+)$
+
+build_dep_graph(dg_s, [varargs]):= block([dg_i, dg_j, dg_sym, dg_syms, dg_dist],
+    if length(varargs)<1 then (
+        defstruct(depgraph(g, syms, aux_vars, all_params)),
+        dg_dg: new(depgraph),
+        dg_dg@g: create_graph ([], [], true),
+        dg_dg@syms: [],
+        dg_dg@aux_vars: [],
+        dg_dg@all_params: []
+    ) else
+        dg_dg: varargs[1],
+    
+    if length(varargs)<2 then
+        dg_i: add_symbol(dg_s, dg_dg)
+    else
+        dg_i: varargs[2],
+    
+    if equal(length(out_neighbors(dg_i, dg_dg@g)), 0) then (
+        if member(dg_s, arrays) then
+            dg_syms: listofvars(listarray(dg_s))
+        else
+            if member(dg_s, values) then
+                dg_syms: listofvars(ev(dg_s))
+            else
+                dg_syms: [],
+        
+        dg_syms: setify(dg_syms),
+        for dg_sym in dg_syms do (
+            dg_j: add_symbol(dg_sym, dg_dg),
+            add_edge([dg_i, dg_j], dg_dg@g),
+            dg_dist: vertex_distance (dg_j, dg_i, dg_dg@g),
+            if dg_dist<inf then
+                error("Circular definition of dependencies involving ", get_vertex_label(dg_i, dg_dg@g), " and ", get_vertex_label(dg_j, dg_dg@g), ". Distance is ", dg_dist),
+            build_dep_graph(dg_sym, dg_dg, dg_j)
+        )
+    ),
+    
+    dg_dg
+)$
+
+get_dependencies(dg_x):= block([dg_l],
+  dg_l: sublist(dependencies, lambda([x_], is(op(x_)=dg_x))),
+  if length(dg_l)=0 then return([]),
+  args(dg_l[1])
+)$
+
+add_dependency(dg_x, dg_d):= block(
+  depends(dg_x, cons(dg_d, get_dependencies(dg_x)))
+)$
+
+set_depends(dg_s, dg_dg, [varargs]):= block([dg_i, dg_j, dg_sym],
+    if listp(dg_s) then (
+        for dg_sym in listofvars(dg_s) do
+            set_depends(dg_sym, dg_dg),
+            
+        return
+    ),
+    
+    if length(varargs)<1 then
+        dg_dep: dg_s
+    else
+        dg_dep: varargs[1],
+
+    dg_i: get_index(dg_s, dg_dg),
+    if dg_i>0 then (
+        for dg_j in in_neighbors(dg_i, dg_dg@g) do (
+            add_dependency(dg_dg@syms[dg_j], dg_dep),
+            set_depends(dg_dg@syms[dg_j], dg_dg, dg_dep)
+        )
+    )
+)$
+
+set_flag(dg_s, dg_flag):= put(if subvarp(dg_s) then op(dg_s) else dg_s, true, dg_flag);
+
+set_symbol_flag(dg_s, dg_flag, dg_dg):= block([dg_i, dg_j],
+    dg_i: get_index(dg_s, dg_dg),
+    if dg_i>0 then
+        set_flag(dg_dg@syms[dg_i], dg_flag)
+);
+
+set_children_flag(dg_s, dg_flag, dg_dg):= block([dg_i, dg_j],
+    dg_i: get_index(dg_s, dg_dg),
+    if dg_i>0 then (
+        for dg_j in out_neighbors(dg_i, dg_dg@g) do (
+            set_flag(dg_dg@syms[dg_j], dg_flag),
+            set_children_flag(dg_dg@syms[dg_j], dg_flag, dg_dg)
+        )
+    )
+)$
+
+set_parents_flag(dg_s, dg_flag, dg_dg):= block([dg_i, dg_j],
+    dg_i: get_index(dg_s, dg_dg),
+    if dg_i>0 then (
+        for dg_j in in_neighbors(dg_i, dg_dg@g) do (
+            set_flag(dg_dg@syms[dg_j], dg_flag),
+            set_parents_flag(dg_dg@syms[dg_j], dg_flag, dg_dg)
+        )
+    )
+)$
+
+transfer_properties(dg_a, dg_b):= block([dg_pro, dg_i],
+  dg_pro: flatten(sublist(apply(properties, [dg_a]), lambda([x], is(x[1]="user properties")))),
+  for dg_i: 2 thru length(dg_pro) do (
+    put(dg_b, get(dg_a, dg_pro[dg_i]), dg_pro[dg_i])
+  )
+)$
+
+dg_tree: build_dep_graph(f);
+dg_tree: build_dep_graph('L, dg_tree);
+dg_tree@aux_vars: delete('L, dg_tree@aux_vars);
+dg_tree: build_dep_graph('F, dg_tree);
+dg_tree@aux_vars: delete('F, dg_tree@aux_vars);
+if member(h, arrays) then dg_tree: build_dep_graph(h, dg_tree);
+
+set_children_flag('F, used_by_final, dg_tree);
+set_children_flag('L, used_by_running, dg_tree);
+set_children_flag(f, used_by_running, dg_tree);
+if member(h, arrays) then set_children_flag(h, used_by_running, dg_tree);
+
+for dg_u in u do set_parents_flag(dg_u, denpends_on_u, dg_tree);
+for dg_tv in dg_time_var_symbols do (set_symbol_flag(dg_tv, time_var, dg_tree), set_parents_flag(dg_tv, time_var, dg_tree));
+
+is_time_var(dg_a):= block([dg_s, dg_tv],
+    if subvarp(dg_a) then dg_a: op(dg_a),
+    
+    if stringp(dg_a) or numberp(dg_a) then
+        false
+    elseif atom(dg_a) then (
+        get(dg_a, time_var)
+    ) else (
+        /*if length(listofvars(dg_a))=1 then error("no expression: ", dg_a),*/
+        dg_tv: false,
+        for dg_s in listofvars(dg_a) do
+            if is_time_var(dg_s) then (
+                /*print(string(dg_s)),*/
+                dg_tv: true,
+                return
+            ),
+        dg_tv
+    )
+);
+    
+does_depend_on_u(dg_a):= get(dg_a, denpends_on_u);
+
+arrayparams: subset(setify(dg_tree@all_params), subvarp);
+scalarparams: setdifference(setify(dg_tree@all_params), arrayparams);
+
+set_depends([x, u], dg_tree);
+
+matchdeclare([dg_diff_rule_cond, dg_diff_rule_true, dg_diff_rule_false], all, dg_diff_rule_diff, symbolp);
+
+diff_ifthenelse_prototype1: 'diff (if dg_diff_rule_cond then dg_diff_rule_true else dg_diff_rule_false, dg_diff_rule_diff);
+dg_diff_if_rule1: first(tellsimp (''diff_ifthenelse_prototype1, block([dg_diff_true, dg_diff_false], dg_diff_true: diff(dg_diff_rule_true, dg_diff_rule_diff), dg_diff_false: diff(dg_diff_rule_false, dg_diff_rule_diff), if dg_diff_rule_cond then dg_diff_true else dg_diff_false)));
+
+diff_ifthenelse_prototype2: 'diff ('if dg_diff_rule_cond then dg_diff_rule_true else dg_diff_rule_false, dg_diff_rule_diff);
+dg_diff_if_rule2: first(tellsimp (''diff_ifthenelse_prototype2, block([dg_diff_true, dg_diff_false], dg_diff_true: diff(dg_diff_rule_true, dg_diff_rule_diff), dg_diff_false: diff(dg_diff_rule_false, dg_diff_rule_diff), 'if dg_diff_rule_cond then dg_diff_true else dg_diff_false)));
+
+/* aux and derivatives definitions */
+aux_def: [];
+aux_deriv: [];
+block([dg_i, dg_a, dg_d1, dg_d2, dg_d, dg_rem_d, dg_dname, dg_ddname, dg_eva, dg_syms, dg_dg, dg_rule],
+    dg_syms: reverse(topological_sort(dg_tree@g)),
+  
+    for dg_i in dg_syms do (
+        dg_a: dg_tree@syms[dg_i],
+        if member(dg_a, dg_tree@aux_vars) then (
+            dg_eva: ev(dg_a),
+            aux_def: endcons([dg_a, dg_eva], aux_def),
+            dg_rule: buildq([rn: concat('rule, '_, dg_a), src: dg_a, dst: concat(aux_prefix, dg_a)], defrule(rn, 'src, dst)),
+            ev(dg_rule),
+
+            dg_rem_d: get_dependencies(dg_a),
+            for dg_d1 in get_dependencies(dg_a) do (
+                dg_d: diff(dg_eva, dg_d1),
+                dg_dname: concat('diff_, dg_a, '_, dg_d1),
+                if not(numberp(dg_d)) then (
+                    aux_deriv: endcons([dg_dname, dg_d], aux_deriv),
+                    apply(defrule, [concat('rule, '_, dg_dname), dg_dname, concat(daux_prefix, dg_dname)]),
+                    apply(gradef, [dg_a, dg_d1, dg_dname]),
+                    transfer_properties(dg_a, dg_dname),
+                    
+                    for dg_d2 in dg_rem_d do (
+                        dg_dd: diff(dg_eva, dg_d1, 1, dg_d2, 1),
+                        if not(numberp(dg_dd)) then (
+                            d_ab: sort([dg_d1, dg_d2]),
+                            dg_ddname: concat('diff_2, dg_a, '_, d_ab[1], '_, d_ab[2]),
+                            aux_deriv: endcons([dg_ddname, dg_dd], aux_deriv),
+                            apply(defrule, [concat('rule, '_, dg_ddname), dg_ddname, concat(daux_prefix, dg_ddname)]),
+                            apply(gradef, [dg_dname, dg_d2, dg_ddname]),
+                            transfer_properties(dg_a, dg_ddname)
+                        ) else
+                            apply(gradef, [dg_dname, dg_d2, dg_dd])
+                        )
+                    ) else 
+                        apply(gradef, [dg_a, dg_d1, dg_d]),
+        
+                dg_rem_d: delete(dg_d1, dg_rem_d)
+            )  
+        )
+    )
+)$
+

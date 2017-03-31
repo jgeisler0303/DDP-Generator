@@ -3,6 +3,8 @@
 #include "matMult.h"
 
 #define mcond(cond, a, dummy, b) ((cond)? a: b)
+#define sec(x) (1.0/cos(x))
+#define csc(x) (1.0/sin(x))
 
 <<tri_matrix_mode: true;>>
 
