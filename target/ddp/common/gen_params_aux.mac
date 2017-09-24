@@ -36,20 +36,20 @@ rem_dep(x, d_work):= block(
   depends(x, delete(d_work, get_dependencies(x)))
 )$
 
-recurse_deps(d_work, parents):= block([new_dep, new_deps, new_p, new_aux: parents, res, r, xu],
+recurse_deps(d_work, parents):= block([new_dep, new_deps, new_p, new_aux: parents, res, r_local, xu],
   new_p: setify(listofvars(ev(d_work))),
   new_deps: subset(new_p, lambda([x], member(x, values))),
   for new_dep in new_deps do (
     if member(new_dep, parents) then
-      error("circular definition of dependencies involving ", new_dep, " and ", dep)
+      error("circular definition of dependencies: ", new_dep, " depends on itself directly or via one of ", parents)
     else
       if not(member(new_dep, new_aux)) then (
         if length(parents)#0 then   (d_work, new_dep),
 
         res: recurse_deps(new_dep, append(parents, [new_dep])),
         new_aux: append(new_aux, [new_dep]),
-        for r in res do
-          new_aux: append(delete(r, new_aux), [r])
+        for r_local in res do
+          new_aux: append(delete(r_local, new_aux), [r_local])
       )
   ),
   new_params: append(new_params, setdifference(new_p, new_deps)),

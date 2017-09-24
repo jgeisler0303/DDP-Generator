@@ -116,11 +116,7 @@ OUTPUT_FUNC_MAT3(MatrixXU, fxu, N_X, N_U, N_X)
 #endif
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
-    // dims
     int N, n, m, m_, n_, si;
-    // inputs
-    tOptSet *o= new optSet();
-    // aux
     const mxArray *mxParams, *mxOptParam, *mxParam;
     const char *err_msg, *fname;
     clock_t begin, end;
@@ -148,6 +144,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         mexErrMsgIdAndTxt("MATLAB:dimagree", "Input 4 must be a scalar struct of optimization parameters.\n");
     }
 
+    tOptSet *o= new optSet();
     standard_parameters(o);
     for(int i= 0; i<mxGetNumberOfFields(mxOptParam); i++) {
         mxParam= mxGetFieldByNumber(mxOptParam, 0, i);

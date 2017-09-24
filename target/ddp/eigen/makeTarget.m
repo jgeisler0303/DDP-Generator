@@ -43,6 +43,9 @@ old_xtracflags= getenv('XTRA_CXXFLAGS');
 %cflags= strrep(cflags, '-fopenmp', '');
 %cflags= strrep(cflags, '-pthread', '');
 % enable SSE or NEON
+% EIGEN_VECTORIZE is set when vectorization is on
+% check for supported SIMD: http://stackoverflow.com/questions/28939652/how-to-detect-sse-avx-avx2-availability-at-compile-time
+% gcc -march=native -dM -E - < /dev/null | egrep "SSE|AVX" | sort
 % see http://eigen.tuxfamily.org/index.php?title=FAQ#How_can_I_enable_vectorization.3F
 % use g++!
 % -DEIGEN_DONT_PARALLELIZE
