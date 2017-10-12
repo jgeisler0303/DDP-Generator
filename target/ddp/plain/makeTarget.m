@@ -1,4 +1,4 @@
-function makeTarget(env, compile_switches, force_gen)
+function mex_name= makeTarget(env, compile_switches, force_gen)
 
 skip_gen= false;
 if exist(fullfile(env.build_dir, 'iLQG_problem.h'), 'file') && (~exist('force_gen', 'var') || ~force_gen)
@@ -11,9 +11,9 @@ end
 
 if ~skip_gen
     if ispc
-        command_line= ['-q --batch-string="problem_file:\"', strrep(env.problem_file, '\', '\\'), '\";target_dir:\"', strrep(env.build_dir, '\', '\\'), '\";batchload(\"make_iLQG.mac\");" 2>' env.maxima_errlog_file];
+        command_line= ['-q --batch-string="problem_file:\"', strrep(env.problem_file, '\', '\\'), '\"$target_dir:\"', strrep(env.build_dir, '\', '\\'), '\"$batchload(\"make_iLQG.mac\")$" 2>' env.maxima_errlog_file];
     else
-        command_line= ['-q --batch-string="problem_file:\"', env.problem_file, '\"; target_dir:\"', env.build_dir, '\"; batchload(\"make_iLQG.mac\");" 2>' env.maxima_errlog_file];
+        command_line= ['-q --batch-string="problem_file:\"', env.problem_file, '\"\$ target_dir:\"', env.build_dir, '\"\$ batchload(\"make_iLQG.mac\")\$" 2>', env.maxima_errlog_file];
     end
 
     callMaxima(command_line, env.maxima_errlog_file);

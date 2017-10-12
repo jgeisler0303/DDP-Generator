@@ -1,0 +1,45 @@
+/* aux and derivatives definitions */
+aux_def: [];
+aux_deriv: [];
+block([dg_i, dg_a, dg_d1, dg_d2, dg_d, dg_rem_d, dg_dname, dg_ddname, dg_eva, dg_syms, dg_dg, dg_rule],
+    dg_syms: reverse(topological_sort(dg_tree@g)),
+  
+    for dg_i in dg_syms do (
+        dg_a: dg_tree@syms[dg_i],
+        if member(dg_a, dg_tree@aux_vars) then (
+            dg_eva: ev(dg_a),
+            aux_def: endcons([dg_a, dg_eva], aux_def),
+            dg_rule: buildq([rn: concat('rule, '_, dg_a), src: dg_a, dst: concat(aux_prefix, dg_a)], defrule(rn, 'src, dst)),
+            ev(dg_rule),
+
+            dg_rem_d: get_dependencies(dg_a),
+            for dg_d1 in get_dependencies(dg_a) do (
+                dg_d: diff(dg_eva, dg_d1),
+                dg_dname: concat('diff_, dg_a, '_, dg_d1),
+                if not(numberp(dg_d)) then (
+                    aux_deriv: endcons([dg_dname, dg_d], aux_deriv),
+                    apply(defrule, [concat('rule, '_, dg_dname), dg_dname, concat(daux_prefix, dg_dname)]),
+                    apply(gradef, [dg_a, dg_d1, dg_dname]),
+                    transfer_properties(dg_a, dg_dname),
+                    
+                    for dg_d2 in dg_rem_d do (
+                        dg_dd: diff(dg_eva, dg_d1, 1, dg_d2, 1),
+                        if not(numberp(dg_dd)) then (
+                            d_ab: sort([dg_d1, dg_d2]),
+                            dg_ddname: concat('diff_2, dg_a, '_, d_ab[1], '_, d_ab[2]),
+                            aux_deriv: endcons([dg_ddname, dg_dd], aux_deriv),
+                            apply(defrule, [concat('rule, '_, dg_ddname), dg_ddname, concat(daux_prefix, dg_ddname)]),
+                            apply(gradef, [dg_dname, dg_d2, dg_ddname]),
+                            transfer_properties(dg_a, dg_ddname)
+                        ) else
+                            apply(gradef, [dg_dname, dg_d2, dg_dd])
+                        )
+                    ) else 
+                        apply(gradef, [dg_a, dg_d1, dg_d]),
+        
+                dg_rem_d: delete(dg_d1, dg_rem_d)
+            )  
+        )
+    )
+)$
+

@@ -32,7 +32,7 @@ v= ver;
 env.is_matlab= ~strcmp(v(1).Name, 'Octave');
 
 env.problem_file= which(fullfile(env.problem_path, env.problem));
-env.build_dir= fullfile(fileparts(env.problem_file), [env.problem_title, '_' strrep(target, '/', '_')]);
+env.build_dir= fullfile(fileparts(env.problem_file), ['gendir_', env.problem_title, '_' strrep(target, '/', '_')]);
 env.maxima_errlog_file= fullfile(env.build_dir, 'maxima_errors.log');
 env.compile_errlog_file= fullfile(env.build_dir, 'compile_err.log');
 

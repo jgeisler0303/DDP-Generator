@@ -1,0 +1,49 @@
+arrayparams: subset(setify(dg_tree@all_params), subvarp);
+scalarparams: setdifference(setify(dg_tree@all_params), arrayparams);
+
+scalarparams: setdifference(scalarparams, {w_pen});
+scalarparams: setdifference(scalarparams, setify(mu_hfe_all));
+scalarparams: setdifference(scalarparams, setify(mu_hfi_all));
+scalarparams: setdifference(scalarparams, setify(mu_hle_all));
+scalarparams: setdifference(scalarparams, setify(mu_hli_all));
+
+scalar_list: block([p_work, l_work: makelist (), i_work: 0], for p_work in scalarparams do (l_work:endcons([p_work, 1, 0, i_work], l_work), i_work: i_work+1), l_work);
+
+array_list: block([p_work, idxes, idx_work, maxidx, l_work: makelist(), aps: {}, i_work:length(scalar_list)],
+  for p_work in arrayparams do
+    aps:adjoin(op(p_work), aps),
+  for p_work in aps do (
+    idxes: map(args, subset(arrayparams, lambda([x], is(op(x)=p_work)))),
+    maxidx: 0,
+    for idx_work in idxes do (
+      if length(idx_work)>1 then
+        error("only one dimensional arrays supported found: ", idx_work)
+      else
+        if integerp(idx_work[1]) then
+          if maxidx=k then
+            error("found index k and other integer index mixed in param ", p_work)            
+          else
+            maxidx: max(maxidx, idx_work[1])
+        else
+          if idx_work[1]=k then
+            if maxidx=0 then
+              maxidx: k
+            else
+                error("found index k and other integer index mixed in param ", p_work)            
+          else
+            error("only integer indices or ksupported, found: ", idx_work, " in param ", p_work)
+     ),
+     if maxidx>0 then maxidx: maxidx+1,
+     l_work:endcons([p_work, maxidx, 0, i_work], l_work),
+     i_work: i_work+1
+  ),
+  l_work
+);
+
+params: append(scalar_list, array_list);
+params: sort(params, lambda([a, b], orderlessp(a[1], b[1])));
+
+block([i],
+  for i: 1 thru length(params) do
+    params[i][4]: i-1
+);

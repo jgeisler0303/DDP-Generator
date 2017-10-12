@@ -20,7 +20,7 @@ u0= .1*randn(2,T);    % initial controls
 Op.max_iter= 200;
 
 tic
-[success, x, u, cost, cx, cu, cxx, cuu, cxu, fx, fu, fxx, fuu, fxu]= ddpCar(x0, u0, p, Op);
+[success, x, u, cost, cx, cu, cxx, cuu, cxu, fx, fu, fxx, fuu, fxu]= ddpCar_noaux(x0, u0, p, Op);
 toc
 
 plotOptCar(t, x, u, [], [], p)

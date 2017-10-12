@@ -10,10 +10,10 @@ if member(hfe, arrays) then block([i_work],
     mu_fe_next[i_work]: concat('mu_fe_, i_work) + w_pen*concat('hfe_, i_work),
     F: F + concat('pfe_, i_work)
   ),
-  time_var_symbols: append(time_var_symbols, [w_pen]),
+  dg_time_var_symbols: append(dg_time_var_symbols, [w_pen]),
 
   mu_hfe_all: makelist(concat('mu_fe_, i_work), i_work, 1, n_hfe),
-  time_var_symbols: append(time_var_symbols, mu_hfe_all)
+  dg_time_var_symbols: append(dg_time_var_symbols, mu_hfe_all)
 ) else (
   n_hfe: 0,
   mu_hfe_all: []
@@ -32,10 +32,10 @@ if member(hfi, arrays) then block([i_work],
     mu_fi_I_next[i_work]: concat('mu_fi_, i_work) * (1 - w_pen*concat('hfi_, i_work))^-2,
     F: F + concat('pfi_, i_work)
   ),
-  time_var_symbols: append(time_var_symbols, [w_pen]),
+  dg_time_var_symbols: append(dg_time_var_symbols, [w_pen]),
 
   mu_hfi_all: makelist(concat('mu_fi_, i_work), i_work, 1, n_hfi),
-  time_var_symbols: append(time_var_symbols, mu_hfi_all)
+  dg_time_var_symbols: append(dg_time_var_symbols, mu_hfi_all)
 ) else (
   n_hfi: 0,
   mu_hfi_all: []
@@ -50,10 +50,10 @@ if member(hle, arrays) then block([i_work],
     mu_le_next[i_work]: concat('mu_le_, i_work) + w_pen*concat('hle_, i_work),
     L: L + concat('ple_, i_work)
   ),
-  time_var_symbols: append(time_var_symbols, [w_pen]),
+  dg_time_var_symbols: append(dg_time_var_symbols, [w_pen]),
 
   mu_hle_all: makelist(concat('mu_le_, i_work), i_work, 1, n_hle),
-  time_var_symbols: append(time_var_symbols, mu_hle_all)
+  dg_time_var_symbols: append(dg_time_var_symbols, mu_hle_all)
 ) else (
   n_hle: 0,
   mu_hle_all: []
@@ -69,10 +69,10 @@ if member(hli, arrays) then block([i_work],
     mu_li_I_next[i_work]: concat('mu_li_, i_work) * (1 - w_pen*concat('hli_, i_work))^-2,
     L: L + concat('pli_, i_work)
   ),
-  time_var_symbols: append(time_var_symbols, [w_pen]),
+  dg_time_var_symbols: append(dg_time_var_symbols, [w_pen]),
 
   mu_hli_all: makelist(concat('mu_li_, i_work), i_work, 1, n_hli),
-  time_var_symbols: append(time_var_symbols, mu_hli_all)
+  dg_time_var_symbols: append(dg_time_var_symbols, mu_hli_all)
 ) else (
   n_hli: 0,
   mu_hli_all: []

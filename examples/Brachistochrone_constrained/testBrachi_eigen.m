@@ -1,17 +1,18 @@
 % setenv('MAXIMA', 'path to maxima');
 % addpath('../..');
-% make_target('optDefBrachi_ineq', 'ddp/fd', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=0', 1)
+% make_target('optDefBrachi', 'ddp/fd', '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1 -DFULL_DDP=1', 1)
 
 
 %% parameters
 p.g= 9.81;
-p.yf= -4.1;
+p.yf= -4;
 p.w= 100;
 x0= [-eps];
 Op= [];
 Op.max_iter= 20;
 Op.w_pen_init_f= 40;
 Op.w_pen_fact2= 2;
+% Op.h_fd= 1e-5;
 
 clf
 hold on
@@ -21,7 +22,7 @@ for n= [2 3 5 500]
     x= linspace(0, 2*pi, n+1);
     u0= -ones(1,n);      % initial controls
 
-    [success, y, u, cost]= ddpBrachi_ineq(x0, u0, p, Op);
+    [success, y, u, cost, cx_, cu_, cxx_, cuu_, cxu_, fx_, fu_, fxx_, fuu_, fxu_]= ddpBrachi_eigen3(x0, u0, p, Op);
     
     plot(x, y, 'b')
 end

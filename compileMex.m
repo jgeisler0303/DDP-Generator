@@ -9,7 +9,7 @@ else
     clear mex
 end
 
-try
+if exist(errlog_file, 'file')
     delete(errlog_file);
 end
 

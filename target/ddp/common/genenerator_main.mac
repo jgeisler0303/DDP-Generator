@@ -15,5 +15,4 @@ nu:length(u);
 tri_matrix_mode: false;
 check_nan_inf_mode: true;
 
-time_var_symbols: append(x, u /*, [k]*/);
-is_time_var(e_work):= not(apply('freeof, endcons(e_work, time_var_symbols)));
+dg_time_var_symbols: append(x, u /*, [k]*/);

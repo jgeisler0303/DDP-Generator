@@ -1,4 +1,5 @@
 .directory
+gendir_*/
 
 # Object files
 *.o
@@ -45,3 +46,4 @@
 # other
 octave-workspace
 *.orig
+*.kate-swp
