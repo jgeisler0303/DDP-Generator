@@ -19,7 +19,7 @@
 #include "printMat.h"
 
 #ifndef DEBUG_ILQG
-#define DEBUG_ILQG 1
+#define DEBUG_ILQG 0
 #else
     #if PREFIX1(DEBUG_ILQG)==1
     #define DEBUG_ILQG 1

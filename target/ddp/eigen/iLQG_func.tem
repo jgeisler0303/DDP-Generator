@@ -5,6 +5,8 @@ using namespace Eigen;
 
 #define mcond(cond, a, dummy, b) ((cond)? a: b)
 #define mqapply(f, i, j) f(i, j)
+#define sec(x) (1.0/cos(x))
+#define csc(x) (1.0/sin(x))
 
 <<tri_matrix_mode: true;>>
 
@@ -37,7 +39,8 @@ static int ddpL(trajEl_t *t, int k, const tOptSet *o) {
     const double *x= t->x.data();
     const double *u= t->u.data();
     double **p= o->p;
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<print_aux_decl_assign([used_by_running], [])>>
     
 <<do_assign('t\-\>c, L, 4, 0)>>
     
@@ -48,7 +51,8 @@ static int ddpF(trajFin_t *t, const tOptSet *o) {
     const double *x= t->x.data();
     const int k= o->n_hor;
     double **p= o->p;
-<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+    
+<<print_aux_decl_assign([used_by_final], [])>>
 
 <<do_assign('t\-\>c, F, 4, 0)>>
     
@@ -58,7 +62,7 @@ static int ddpF(trajFin_t *t, const tOptSet *o) {
 static int ddpf(Ref<VectorX> x_next, const trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x.data();
     const double *u= t->u.data();
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], [])>>
     
 <<block([i], for i:1 thru nx do do_assign(x_next(i-1), f[x[i]], 4, 0))>>
     return 1;
@@ -69,7 +73,7 @@ void clampU(Ref<VectorU> u_, const trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x.data();
     double *u= u_.data();
     
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], [])>>
 
 <<block([i], for i: 1 thru nh do do_clamp(i))>>
 }
@@ -83,8 +87,8 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     const double *x= t->x.data();
     double limit;
     
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], [])>>
+<<print_deriv_decl_assign([used_by_running], [])>>
 
     t->lower= VectorU::Constant(-INF);
     t->upper= VectorU::Constant(INF);
@@ -202,11 +206,10 @@ static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const 
     const double *x= t->x.data();
     double **p= o->p;
     const double w_pen= o->w_pen_l;
-<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
-    
-<<print_aux(1, used_by_running);>>
 
-<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_aux([time_var, used_by_running], [denpends_on_u]);>>
+
+<<print_aux_assign([time_var, used_by_running], [denpends_on_u]);>>
 
     return 1;
 } 
@@ -216,12 +219,12 @@ static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const
     const double *u= t->u.data();
     double **p= o->p;
     const double w_pen= o->w_pen_l;
-<<block([a], for a in aux_def do if is_time_var(a[2]) and not(does_depend_on_u(a[2])) and get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_def do if is_time_var(a[2]) and does_depend_on_u(a[2]) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
     
-<<print_aux(2, used_by_running);>>
+<<print_aux_decl_assign([time_var, used_by_running], [denpends_on_u]);>>
 
-<<block([a], for a in aux_def do if is_time_var(a[2]) and does_depend_on_u(a[2]) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_aux([denpends_on_u, used_by_running], []);>>
+
+<<print_aux_assign([denpends_on_u, used_by_running], []);>>
 
     return 1;
 } 
@@ -231,11 +234,11 @@ static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptS
     double **p= o->p;
     const double w_pen= o->w_pen_f;
     const int k= o->n_hor;
-<<block([a], for a in aux_def do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
     
-<<print_aux(1, used_by_final);>>
+<<print_aux([time_var, used_by_final], []);>>
 
-<<block([a], for a in aux_def do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_aux_assign([time_var, used_by_final], []);>>
+
     return 1;
 } 
 
@@ -244,13 +247,13 @@ static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOp
     const double *u= t->u.data();
     const double w_pen= o->w_pen_l;
     double **p= o->p;
-<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    const double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
     
-<<print_deriv(1, used_by_running);>>
+<<print_aux_decl_assign([used_by_running], []);>>
+<<print_deriv_decl_assign([used_by_running], [time_var]);>>
 
-<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_deriv([time_var, used_by_running], []);>>
+
+<<print_deriv_assign([time_var, used_by_running], []);>>
 
     return 1;
 }
@@ -259,8 +262,8 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
     const double *x= t->x.data();
     const double *u= t->u.data();
     
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], []);>>
+<<print_deriv_decl_assign([used_by_running], []);>>
     
 // derivatives of f
 <<print_jaco('t\-\>fx, fx, true);>>
@@ -276,15 +279,15 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
 #endif
 
 // derivatives of L
-<<print_grad('t\-\>cx, Lx);>>
+<<print_grad('t\-\>cx, Lx, true);>>
 
-<<print_hess('t\-\>cxx, Lxx);>>
+<<print_hess('t\-\>cxx, Lxx, true);>>
 
-<<print_grad('t\-\>cu, Lu);>>
+<<print_grad('t\-\>cu, Lu, true);>>
 
-<<print_hess('t\-\>cuu, Luu);>>
+<<print_hess('t\-\>cuu, Luu, true);>>
 
-<<print_hess('t\-\>cxu, Lxu);>>
+<<print_hess('t\-\>cxu, Lxu, true);>>
 
     return 1;
 }
@@ -294,40 +297,40 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
     const double w_pen= o->w_pen_f;
     double **p= o->p;
     const int k= o->n_hor;
-<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    const double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
     
-<<print_deriv(1, used_by_final);>>
+<<print_aux_decl_assign([used_by_final], []);>>
+<<print_deriv_decl_assign([used_by_final], [time_var]);>>
 
-<<block([a], for a in aux_deriv do if is_time_var(a[2]) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_deriv([time_var, used_by_final], []);>>
+
+<<print_deriv_assign([time_var, used_by_final], []);>>
 
     return 1;
 }
 
 static int bp_derivsF(trajFin_t *t, int k, double **p) {
     const double *x= t->x.data();
-<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if get(a[1], used_by_final) then gentran(literal("    const double ", eval(daux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
-    
-<<print_grad('t\-\>cx, Fx);>>
+<<print_aux_decl_assign([used_by_final], []);>>
+<<print_deriv_decl_assign([used_by_final], []);>>
 
-<<print_hess('t\-\>cxx, Fxx);>>
+    
+<<print_grad('t\-\>cx, Fx, true);>>
+
+<<print_hess('t\-\>cxx, Fxx, true);>>
     return 1;
 }
 
 static int init_running(trajEl_t *t, const tOptSet *o) {
     double **p= o->p;
     
-<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
     
     for(int k= 0; k<o->n_hor; k++, t++) {
-<<print_aux(0, used_by_running);>>
-<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_aux([used_by_running], [time_var]);>>
+<<print_aux_assign([used_by_running], [time_var]);>>
 
-<<print_deriv(0, used_by_running);>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_running) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_deriv([used_by_running], [time_var]);>>
+<<print_deriv_assign([used_by_running], [time_var]);>>
+
 
 // derivatives of L
 <<print_grad('t\-\>cx, Lx, false);>>
@@ -360,14 +363,12 @@ static int init_running(trajEl_t *t, const tOptSet *o) {
 static int init_final(trajFin_t *t, const tOptSet *o) {
     double **p= o->p;
     const int k= o->n_hor;
-<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    double ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    double ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
 
-<<print_aux(0, used_by_final);>>
-<<block([a], for a in aux_def do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(aux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_aux([used_by_final], [time_var]);>>
+<<print_aux_assign([used_by_final], [time_var]);>>
 
-<<print_deriv(0, used_by_final);>>
-<<block([a], for a in aux_deriv do if not(is_time_var(a[2])) and get(a[1], used_by_final) then gentran(literal("    t->", eval(a[1]), "= ", eval(daux_prefix), eval(a[1]), "\;", cr)))>>
+<<print_deriv([used_by_final], [time_var]);>>
+<<print_deriv_assign([used_by_final], [time_var]);>>
 
 <<print_grad('t\-\>cx, Fx, false);>>
 
@@ -437,7 +438,7 @@ static int update_multipliers_running(tOptSet *o, int init) {
         const double *x= t->x.data();
         const double *u= t->u.data();
         
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("        const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], []);>>
         
 <<block([i], ?ccurrind\*: 4, for i: 1 thru n_hle do (
   gentran(if fabs(eval(do_replacements(concat('hle_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hle_, i))))>fabs(m\-\>last_hle[eval(i-1)]) then increase_pen: 1),
@@ -481,7 +482,7 @@ static int update_multipliers_final(tOptSet *o, int init) {
     const double w_pen= o->w_pen_f;
     double **p= o->p;
     
-<<block([a], for a in aux_def do if get(a[1], used_by_final) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_final], []);>>
     
     int increase_pen= 0;
     int k= o->n_hor;
@@ -534,7 +535,7 @@ int calcG(double g[], const trajEl_t *t, int k, double **p) {
     const double *x= t->x.data();
     const double *u= t->u.data();
     
-<<block([a], for a in aux_def do if get(a[1], used_by_running) then gentran(literal("    const double ", eval(aux_prefix), eval(a[1]), "= t->", eval(a[1]), "\;", cr)))>>
+<<print_aux_decl_assign([used_by_running], []);>>
     
 <<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
     return(1);

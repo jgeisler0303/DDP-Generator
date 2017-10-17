@@ -160,6 +160,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
 
     
+    o->n_hor= N-1;
+    
     o->p= (double **)mxMalloc(n_params*sizeof(double *));
     for(int i=0; i<n_params; i++) {
         si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
@@ -202,7 +204,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     Map<VectorX> mapX0(mxGetPr(prhs[0]));
     o->x0= mapX0;
     // std::cout << "x0= " << o->x0 << std::endl;
-    o->n_hor= N-1;
     
     mexPrintf("Set const vars\n");
     if(!init_opt(o)) {

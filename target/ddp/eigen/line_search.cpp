@@ -16,7 +16,7 @@
 #include "line_search.h"
  
 #ifndef DEBUG_FORWARDPASS
-#define DEBUG_FORWARDPASS 1
+#define DEBUG_FORWARDPASS 0
 #else
     #if PREFIX1(DEBUG_FORWARDPASS)==1
     #define DEBUG_FORWARDPASS 1
