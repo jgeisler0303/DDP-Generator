@@ -145,13 +145,14 @@ print_deriv_decl_assign(dg_prerequisite_list, dg_exclude_list):= block([dg_a, i_
 
 print_jaco(n_work, v_work, [time_var_test]):= block([c_work,r_work,fx,fu],
   for c_work:0 thru arrayinfo(v_work)[3][2] do (
-    gentran(literal("// d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i]/d ", eval(substring(sreverse(string(n_work)), 1, 2)), "[", eval(c_work), "]", cr)),
     for r_work:0 thru arrayinfo(v_work)[3][1] do (
-      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work]) then
+      if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work]) then (
+        gentran(literal("// d", eval(substring(sreverse(string(n_work)), 2, 3)), "[", eval(r_work), "]/d ", eval(substring(sreverse(string(n_work)), 1, 2)), "[", eval(c_work), "]", cr)),
         if atom(float(v_work[r_work, c_work])) then
             do_assign(apply("'", [arraymake(n_work, [linear_index([r_work, c_work], arrayinfo(v_work)[3])])]), v_work[r_work, c_work], 4)
         else
             do_assign(apply("'", [arraymake(n_work, [linear_index([r_work, c_work], arrayinfo(v_work)[3])])]), v_work[r_work, c_work], 4, 0)
+      )
     )
   )
       /*gentran(literal("    ", eval(n_work), "["), eval(linear_index([r_work, c_work], arrayinfo(v_work)[3])), literal("]= "), eval(v_work[r_work, c_work]), literal("\;", cr))*/
@@ -159,16 +160,14 @@ print_jaco(n_work, v_work, [time_var_test]):= block([c_work,r_work,fx,fu],
       
 print_jaco2(n_work, v_work, [time_var_test]):= block([d3,c_work,r_work, fxx, fuu, fxu, lin_index:0, max_row_index],
   for r_work:0 thru arrayinfo(v_work)[3][1] do (
-    gentran(literal("// d^2", eval(substring(sreverse(string(n_work)), 3, 4)), "[", eval(r_work), "]/d", eval(substring(sreverse(string(n_work)), 2, 3)), "[i] d", eval(substring(sreverse(string(n_work)), 1, 2)), "[j]", cr)),    
-  
     for d3:0 thru arrayinfo(v_work)[3][3] do (
       if arrayinfo(v_work)[3][2]=arrayinfo(v_work)[3][3] and tri_matrix_mode then
         max_row_index: d3
       else
         max_row_index: arrayinfo(v_work)[3][2],
-      gentran(literal("// j= ", eval(d3), cr)),    
       for c_work:0 thru max_row_index do (
         if length(time_var_test)<1 or time_var_test[1]=is_time_var(v_work[r_work, c_work, d3]) then (
+          gentran(literal("// d2", eval(substring(sreverse(string(n_work)), 3, 4)), "[", eval(r_work), "]/d", eval(substring(sreverse(string(n_work)), 2, 3)), "[", eval(c_work), "] d", eval(substring(sreverse(string(n_work)), 1, 2)), "[", eval(d3), "]", cr)),    
           if atom(float(v_work[r_work, c_work, d3])) then
             do_assign(apply("'", [arraymake(n_work, [lin_index])]), v_work[r_work, c_work, d3], 4)
           else
