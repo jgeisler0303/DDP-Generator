@@ -66,10 +66,24 @@ build_dep_graph(dg_s, [varargs]):= block([dg_i, dg_j, dg_sym, dg_syms, dg_dist],
     dg_dg
 )$
 
-get_dependencies(dg_x):= block([dg_l],
+get_dependencies(dg_x):= block([dg_l, dg_v, dg_dg_l_sorted],
   dg_l: sublist(dependencies, lambda([x_], is(op(x_)=dg_x))),
   if length(dg_l)=0 then return([]),
-  args(dg_l[1])
+  dg_l: args(dg_l[1]),
+  dg_l_sorted: [],
+  for dg_v in x do (
+    if member(dg_v, dg_l) then (
+        dg_l: delete(dg_v, dg_l),
+        dg_l_sorted: endcons(dg_v, dg_l_sorted)
+    )
+  ),
+  for dg_v in u do (
+    if member(dg_v, dg_l) then (
+        dg_l: delete(dg_v, dg_l),
+        dg_l_sorted: endcons(dg_v, dg_l_sorted)
+    )
+  ),
+  append(dg_l_sorted, dg_l)
 )$
 
 add_dependency(dg_x, dg_d):= block(
@@ -147,6 +161,7 @@ if member(h, arrays) then set_children_flag(h, used_by_running, dg_tree);
 
 for dg_u in u do set_parents_flag(dg_u, denpends_on_u, dg_tree);
 for dg_tv in dg_time_var_symbols do (set_symbol_flag(dg_tv, time_var, dg_tree), set_parents_flag(dg_tv, time_var, dg_tree));
+set_depends([x, u], dg_tree);
 
 is_time_var(dg_a):= block([dg_s, dg_tv],
     if subvarp(dg_a) then dg_a: op(dg_a),
@@ -167,68 +182,3 @@ is_time_var(dg_a):= block([dg_s, dg_tv],
         dg_tv
     )
 );
-    
-arrayparams: subset(setify(dg_tree@all_params), subvarp);
-scalarparams: setdifference(setify(dg_tree@all_params), arrayparams);
-
-scalarparams: setdifference(scalarparams, {w_pen});
-scalarparams: setdifference(scalarparams, setify(mu_hfe_all));
-scalarparams: setdifference(scalarparams, setify(mu_hfi_all));
-scalarparams: setdifference(scalarparams, setify(mu_hle_all));
-scalarparams: setdifference(scalarparams, setify(mu_hli_all));
-
-set_depends([x, u], dg_tree);
-
-matchdeclare([dg_diff_rule_cond, dg_diff_rule_true, dg_diff_rule_false], all, dg_diff_rule_diff, symbolp);
-
-diff_ifthenelse_prototype1: 'diff (if dg_diff_rule_cond then dg_diff_rule_true else dg_diff_rule_false, dg_diff_rule_diff);
-dg_diff_if_rule1: first(tellsimp (''diff_ifthenelse_prototype1, block([dg_diff_true, dg_diff_false], dg_diff_true: diff(dg_diff_rule_true, dg_diff_rule_diff), dg_diff_false: diff(dg_diff_rule_false, dg_diff_rule_diff), if dg_diff_rule_cond then dg_diff_true else dg_diff_false)));
-
-diff_ifthenelse_prototype2: 'diff ('if dg_diff_rule_cond then dg_diff_rule_true else dg_diff_rule_false, dg_diff_rule_diff);
-dg_diff_if_rule2: first(tellsimp (''diff_ifthenelse_prototype2, block([dg_diff_true, dg_diff_false], dg_diff_true: diff(dg_diff_rule_true, dg_diff_rule_diff), dg_diff_false: diff(dg_diff_rule_false, dg_diff_rule_diff), 'if dg_diff_rule_cond then dg_diff_true else dg_diff_false)));
-
-/* aux and derivatives definitions */
-aux_def: [];
-aux_deriv: [];
-block([dg_i, dg_a, dg_d1, dg_d2, dg_d, dg_rem_d, dg_dname, dg_ddname, dg_eva, dg_syms, dg_dg, dg_rule],
-    dg_syms: reverse(topological_sort(dg_tree@g)),
-  
-    for dg_i in dg_syms do (
-        dg_a: dg_tree@syms[dg_i],
-        if member(dg_a, dg_tree@aux_vars) then (
-            dg_eva: ev(dg_a),
-            aux_def: endcons([dg_a, dg_eva], aux_def),
-            dg_rule: buildq([rn: concat('rule, '_, dg_a), src: dg_a, dst: concat(aux_prefix, dg_a)], defrule(rn, 'src, dst)),
-            ev(dg_rule),
-
-            dg_rem_d: get_dependencies(dg_a),
-            for dg_d1 in get_dependencies(dg_a) do (
-                dg_d: diff(dg_eva, dg_d1),
-                dg_dname: concat('diff_, dg_a, '_, dg_d1),
-                if not(numberp(dg_d)) then (
-                    aux_deriv: endcons([dg_dname, dg_d], aux_deriv),
-                    apply(defrule, [concat('rule, '_, dg_dname), dg_dname, concat(daux_prefix, dg_dname)]),
-                    apply(gradef, [dg_a, dg_d1, dg_dname]),
-                    transfer_properties(dg_a, dg_dname),
-                    
-                    for dg_d2 in dg_rem_d do (
-                        dg_dd: diff(dg_eva, dg_d1, 1, dg_d2, 1),
-                        if not(numberp(dg_dd)) then (
-                            d_ab: sort([dg_d1, dg_d2]),
-                            dg_ddname: concat('diff_2, dg_a, '_, d_ab[1], '_, d_ab[2]),
-                            aux_deriv: endcons([dg_ddname, dg_dd], aux_deriv),
-                            apply(defrule, [concat('rule, '_, dg_ddname), dg_ddname, concat(daux_prefix, dg_ddname)]),
-                            apply(gradef, [dg_dname, dg_d2, dg_ddname]),
-                            transfer_properties(dg_a, dg_ddname)
-                        ) else
-                            apply(gradef, [dg_dname, dg_d2, dg_dd])
-                        )
-                    ) else 
-                        apply(gradef, [dg_a, dg_d1, dg_d]),
-        
-                dg_rem_d: delete(dg_d1, dg_rem_d)
-            )  
-        )
-    )
-)$
-
