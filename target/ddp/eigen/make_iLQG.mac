@@ -1,19 +1,25 @@
-batchload(problem_file);
-  
-load("gentran");
+loadfile("../../../redirect_trace.lisp")$
 
-batchload("../common/gen_validate_ddp.mac");
-batchload("../common/genenerator_main.mac");
-batchload("../common/gen_multipliers.mac");
-batchload("../common/gen_params_aux.mac");
-batchload("../common/gen_constraints.mac");
-batchload("../common/gen_make_ocp_derivs.mac");
-batchload("../common/gen_rules.mac");
-batchload("gen_printers.mac");
-print(aux_def);
-print(get(aux_def[1][1], used_by_running));
+gen_ddp(problem_file, target_dir):= block(
+    print("problem file: ", problem_file),
+    print("target dir: ", target_dir),
 
-gentranin("iLQG_problem.tem", [openw(sconcat(target_dir, "/iLQG_problem.h"))]);
-gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.cpp"))]);
+    batchload(problem_file),
+    
+    load("gentran"),
 
+    batchload("../common/gen_validate_ddp.mac"),
+    batchload("../common/genenerator_main.mac"),
+    batchload("../common/gen_multipliers.mac"),
+    batchload("../common/gen_dep_graph.mac"),
+    batchload("../common/gen_params.mac"),
+    batchload("../common/gen_aux.mac"),
+    batchload("../common/gen_constraints.mac"),
+    batchload("../common/gen_make_ocp_derivs.mac"),
+    batchload("../common/gen_rules.mac"),
+    batchload("gen_printers.mac"),
+
+    gentranin("iLQG_problem.tem", [openw(sconcat(target_dir, "/iLQG_problem.h"))]),
+    gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.cpp"))])
+)$
 

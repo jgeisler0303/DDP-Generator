@@ -1,4 +1,4 @@
-function callMaxima(command_line, maxima_errlog_file)
+function res= callMaxima(command_line, maxima_errlog_file)
   
 maxima= getenv('MAXIMA');
 if isempty(maxima)
@@ -13,4 +13,7 @@ fprintf('Maxima said:\n%s\n', output);
 dd= dir(maxima_errlog_file);
 if dd.bytes>0
     fprintf('There were errors during execution of maxima logged to file: %s\n', maxima_errlog_file);
+    res= 0;
+else
+    res= 1;
 end
