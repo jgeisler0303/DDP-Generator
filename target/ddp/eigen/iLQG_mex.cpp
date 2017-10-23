@@ -179,6 +179,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
     // printParams(o.p, o.n_hor);
 
+    o->log= (tLogLine *)mxMalloc(o->max_iter*sizeof(tLogLine));
+    memset(o->log, 0, o->max_iter*sizeof(tLogLine));
+    
     // outputs
     plhs[0]= mxCreateDoubleMatrix(1, 1, mxREAL);
     double *success= mxGetPr(plhs[0]);
@@ -205,6 +208,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     o->x0= mapX0;
     // std::cout << "x0= " << o->x0 << std::endl;
     
+#ifdef EIGEN_VECTORIZE
+    mexPrintf("Eigen vectorization on\n");
+#else
+    mexPrintf("Eigen vectorization off\n");
+#endif
     mexPrintf("Set const vars\n");
     if(!init_opt(o)) {
         success[0]= 0;
@@ -248,6 +256,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
                 begin = clock();
                 success[0]= iterate(o);
                 end = clock();
+                printLog(o);
                 mexPrintf("Time for iLQG: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
             }
             
@@ -282,7 +291,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         }
     }
     
-    
+    mxFree(o->log);
     mxFree(o->p);
     
     for(int i= 0; i<NUMBER_OF_THREADS+1; i++)

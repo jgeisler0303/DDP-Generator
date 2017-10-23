@@ -3,6 +3,6 @@
 
 #include "iLQG.hpp"
 
-int line_search(tOptSet *o, int iter);
+int line_search(tOptSet *o);
 
 #endif /* LINESEARCH_H */

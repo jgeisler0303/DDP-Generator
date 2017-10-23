@@ -55,7 +55,6 @@ compile_files{end+1}= 'line_search.cpp';
 compile_files{end+1}= 'back_pass.cpp';
 compile_files{end+1}= 'boxQP.cpp';
 compile_files{end+1}= 'printMat.cpp';
-compile_files{end+1}= 'iLQG.cpp';
 compile_files{end+1}= fullfile(env.build_dir, 'iLQG_func.cpp');
 
 old_cflags= getenv('CXXFLAGS');
@@ -63,9 +62,7 @@ old_xtracflags= getenv('XTRA_CXXFLAGS');
 [status, cflags]= system('mkoctfile --print  CXXFLAGS');
 cflags= strrep(cflags, '-fopenmp', '');
 cflags= strrep(cflags, '-pthread', '');
-cflags= [cflags ' -pthread -fopenmp '];
-% enable SSE or NEON
-% EIGEN_VECTORIZE is set when vectorization is on
+cflags= [cflags ' -pthread -fopenmp -march=native -mfpu=neon -mfloat-abi=hard '];
 % check for supported SIMD: http://stackoverflow.com/questions/28939652/how-to-detect-sse-avx-avx2-availability-at-compile-time
 % gcc -march=native -dM -E - < /dev/null | egrep "SSE|AVX" | sort
 % see http://eigen.tuxfamily.org/index.php?title=FAQ#How_can_I_enable_vectorization.3F

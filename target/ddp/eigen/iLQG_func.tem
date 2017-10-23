@@ -149,34 +149,41 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int co
                 ct->u= t->u;
             }
         }        
-        if(!calcXVariableAux(ct, m, k, o)) return 0;
+        if(!calcXVariableAux(ct, m, k, o)) break;
         
         if(!cost_only) {
             Ref<VectorU> ref(ct->u);
             clampU(ref, ct, k, params, N);
         }
 
-        if(!calcXUVariableAux(ct, m, k, o)) return 0;
+        if(!calcXUVariableAux(ct, m, k, o)) break;
         
         if(!cost_only) {
             if(k>=N-1) {
                 Ref<VectorX> ref(cf->x);
-                if(!ddpf(ref, ct, k, params, N)) return 0;
+                if(!ddpf(ref, ct, k, params, N)) break;
             } else {
                 Ref<VectorX> ref((ct+1)->x);
-                if(!ddpf(ref, ct, k, params, N)) return 0;
+                if(!ddpf(ref, ct, k, params, N)) break;
             }
         }
         
-        if(!ddpL(ct, k, o)) return 0;
+        if(!ddpL(ct, k, o)) break;
         csum+= ct->c;        
     }
     
-    if(!calcFVariableAux(cf, mf, o)) return 0;
-        
-    if(!ddpF(cf, o))  return 0;
+    if(k<N) {
+        if(o->log_line) o->log_line->forward_pass_fail= k+1;
+        return 0;
+    }
+    
+    if(!calcFVariableAux(cf, mf, o) || !ddpF(cf, o)) {
+        if(o->log_line) o->log_line->forward_pass_fail= N+1;
+        return 0;
+    }
     csum+= cf->c;
         
+    if(o->log_line) o->log_line->forward_pass_fail= 0;
     return 1;
 }
 
@@ -189,17 +196,26 @@ int calc_derivs(const tOptSet *o) {
     multipliersEl_t *m= o->multipliers.t + N - 1;
     const multipliersFin_t *mf= &o->multipliers.f;
 
-    if(!calcFAuxDeriv(f, mf, o)) return 0;
-    if(!bp_derivsF(f, N, o->p)) return 0;
+    if(!calcFAuxDeriv(f, mf, o) ||!bp_derivsF(f, N, o->p)) {
+        if(o->log_line) o->log_line->derivs_fail= N+1;
+    
+        return 0;
+    }
     
     for(int k= N-1; k>=0; k--, t--, m--) {
-        if(!calcLAuxDeriv(t, m, k, o)) return 0;
-        if(!bp_derivsL(t, k, o->p)) return 0;
+        if(!calcLAuxDeriv(t, m, k, o)) break;
+        if(!bp_derivsL(t, k, o->p)) break;
         
         limitsU(t, k, o->p, N);
 
     }
-    return 1;
+    if(k>=0) {
+        if(o->log_line) o->log_line->derivs_fail= k+1;
+        return 0;
+    } else {
+        if(o->log_line) o->log_line->derivs_fail= 0;
+        return 1;
+    }
 }
 
 static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {

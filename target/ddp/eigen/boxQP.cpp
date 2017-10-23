@@ -64,9 +64,6 @@ int boxQP(const Ref<const MatrixUU> &H, const Ref<const VectorU> &g, const Ref<c
     value= x.dot(0.5*grad+g);
     
     for(int iter= 0; iter<maxIter; iter++) {
-        if(iter>0 && (oldvalue-value) < minRelImprove*fabs(oldvalue))
-            return 4;
-
         oldvalue= value;
         
         grad= g;
@@ -181,8 +178,12 @@ int boxQP(const Ref<const MatrixUU> &H, const Ref<const VectorU> &g, const Ref<c
                 break;
             
             step= step*stepDec;
-            if(step<minStep)
+            if(step<minStep) {
+                if(vc<oldvalue)
+                    x= xc;
+                
                 return 2;
+            }
             
             nstep++;
         }
@@ -191,7 +192,8 @@ int boxQP(const Ref<const MatrixUU> &H, const Ref<const VectorU> &g, const Ref<c
         x= xc;
         value= vc;
         
-        TRACE(("iter %-3d  value % -9.5g |g| %-9.3g  reduction %-9.3g  steps %-2d  n_clamped %d nfactor %d\n", iter+1, vc, sqrt(gnorm), oldvalue-vc, nstep, nQP-n_free, nfactor));
+        if((oldvalue-value) < minRelImprove*fabs(oldvalue))
+            return 4;
     }
     
     return 1;

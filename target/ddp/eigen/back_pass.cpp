@@ -14,17 +14,6 @@
 #include "iLQG.hpp"
 #include "boxQP.h"
 
-#ifndef DEBUG_BACKPASS
-#define DEBUG_BACKPASS 0
-#else
-    #if PREFIX1(DEBUG_BACKPASS)==1
-    #define DEBUG_BACKPASS 1
-    #endif
-#endif
-
-#define TRACE(x) do { if (DEBUG_BACKPASS) PRNT x; } while (0)
-// #define printVec_(x) do { if (DEBUG_BACKPASS) printVec x; } while (0)
-// #define printMat_(x) do { if (DEBUG_BACKPASS) printMat x; } while (0)
 
 using namespace Eigen;
 
@@ -99,10 +88,15 @@ int back_pass(tOptSet *o) {
         LLT<MatrixUU_dyn, Upper> lltQuu_free;
         int qpRes, m_free;
         if((qpRes= boxQP(QuuF, Qu, t->lower, t->upper, t->l, is_clamped, m_free, lltQuu_free))<1) {
-            TRACE(("@k= %d: qpRes= %d \n", k, qpRes));
+            if(o->log_line) {
+                // TODO: maybe log last three results per iteration
+                o->log_line->back_pass_failed= k+1;
+                o->log_line->qp_res= qpRes;
+            }
             return 1;
         }
         
+        MatrixUX_dyn L_free;
         if(m_free>0) {
             MatrixUX_dyn Qux_free(m_free, N_X);
 
@@ -127,21 +121,22 @@ int back_pass(tOptSet *o) {
                     i_free++;
                 }
 
-            MatrixUX_dyn L_free= -lltQuu_free.solve(Qux_free);
-
-            for(int i= 0, i_free= 0; i<N_U; i++)
-                if(!is_clamped(i)) {
-                    t->L.row(i)= L_free.row(i_free);
-                    i_free++;
-                } 
+            L_free= -lltQuu_free.solve(Qux_free);
+        }
+        
+        for(int i= 0, i_free= 0; i<N_U; i++) {
+            if(!is_clamped(i)) {
+                t->L.row(i)= L_free.row(i_free);
+                i_free++;
+            } 
 #if CONSTRAINT_UX
-                else if(is_clamped[i]==1) {
-                    t->L.row(i)= t->lower_sign(i) * t->lower_hx.col(i);
-                } else {
-                    t->L.row(i)= t->upper_sign(i) * t->upper_hx.col(i);
-                }
+            else if(is_clamped(i)==1) {
+                t->L.row(i)= -1.0*t->lower_sign(i) * t->lower_hx.col(i);
+            } else {
+                t->L.row(i)= -1.0*t->upper_sign(i) * t->upper_hx.col(i);
+            }
 #else
-                else t->L.row(i).setZero();
+            else t->L.row(i).setZero();
 #endif
         }
         
@@ -172,7 +167,8 @@ int back_pass(tOptSet *o) {
     }
     
     o->g_norm= g_norm_sum/((double)(o->n_hor-1));
-    
+
+    if(o->log_line) o->log_line->back_pass_failed= 0;
     return 0;
 }
 

@@ -1,5 +1,8 @@
 .directory
 gendir_*/
+ddp*_cli
+ddp'_cli.exe
+perf.data
 
 # Object files
 *.o
