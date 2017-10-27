@@ -1,8 +1,6 @@
 #ifndef ILQG_H
 #define ILQG_H
 
-#include <stdio.h>
-
 #ifndef FULL_DDP
     #define FULL_DDP 1
 #endif
@@ -55,12 +53,14 @@ typedef struct logLine {
     int res;
 } tLogLine;
 
+#define MAX_ALPHA 20
+
 typedef struct optSet {
     int n_hor;
     VectorX x0;
     double new_cost, cost, dcost, lambda, g_norm;
     double **p;
-    const double *alpha;
+    double alpha[MAX_ALPHA];
     int n_alpha;
     double lambdaMax;
     double lambdaMin;
@@ -112,14 +112,6 @@ int init_opt(tOptSet *o);
 int update_multipliers(tOptSet *o, int init);
 int get_g_size();
 int calcG(double g[], const trajEl_t *t, int k, double *p[]);
-
-static double max(double a, double b) {
-    return (a > b)? a: b;
-}
-
-static double min(double a, double b) {
-    return (a < b)? a: b;
-}
 
 
 extern int n_params;

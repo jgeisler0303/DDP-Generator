@@ -3,15 +3,9 @@
 #define ILQG_PROBLEM_H
 
 #include <math.h>
-#include "mex.h"
-#ifndef  HAVE_OCTAVE
-#include "matrix.h"
-#endif
 
-#define isNANorINF(v) (mxIsNaN(v) || mxIsInf(v))
-#define INF mxGetInf()
-// #define isNANorINF(v) (isnan(v) || !finite(v))
-// #define INF HUGE_VAL
+#define isNANorINF(v) (isnan(v) || isinf(v))
+#define INF HUGE_VAL
 
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 

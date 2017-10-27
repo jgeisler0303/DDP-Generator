@@ -138,7 +138,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
 
     // inputs
-    o.x0= mxGetPr(prhs[0]);
+    for(i= 0; i<N_X; i++)
+        o.x0[i]= mxGetPr(prhs[0])[i];
     u_nom= mxGetPr(prhs[1]);
     o.n_hor= N-1;
     
@@ -220,6 +221,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
                 begin = clock();
                 success[0]= iLQG(&o);
                 end = clock();
+                
+                printLog(&o);
                 mexPrintf("Time for iLQG: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
             }
             
@@ -255,6 +258,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     mxFree(o.p);
     for(i= 0; i<NUMBER_OF_THREADS+1; i++)
         mxFree(o.trajectories[i].t);
+    
+    mxFree(o.multipliers.t);
 }
 
  

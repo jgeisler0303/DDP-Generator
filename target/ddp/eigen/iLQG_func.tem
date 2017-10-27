@@ -1,5 +1,6 @@
 <<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
 #include "iLQG.hpp"
+#include <algorithm>
 
 using namespace Eigen;
 
@@ -36,9 +37,9 @@ static int bp_derivsL(trajEl_t *t, int k, double **p);
 static int bp_derivsF(trajFin_t *t, int k, double **p);
 
 static int ddpL(trajEl_t *t, int k, const tOptSet *o) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
-    double **p= o->p;
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
+    double __attribute__((unused)) **p= o->p;
     
 <<print_aux_decl_assign([used_by_running], [])>>
     
@@ -48,9 +49,9 @@ static int ddpL(trajEl_t *t, int k, const tOptSet *o) {
 }
 
 static int ddpF(trajFin_t *t, const tOptSet *o) {
-    const double *x= t->x.data();
-    const int k= o->n_hor;
-    double **p= o->p;
+    const double __attribute__((unused)) *x= t->x.data();
+    const int __attribute__((unused)) k= o->n_hor;
+    double __attribute__((unused)) **p= o->p;
     
 <<print_aux_decl_assign([used_by_final], [])>>
 
@@ -60,8 +61,8 @@ static int ddpF(trajFin_t *t, const tOptSet *o) {
 }
 
 static int ddpf(Ref<VectorX> x_next, const trajEl_t *t, int k, double **p, int N) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
 <<print_aux_decl_assign([used_by_running], [])>>
     
 <<block([i], for i:1 thru nx do do_assign(x_next(i-1), f[x[i]], 4, 0))>>
@@ -69,9 +70,9 @@ static int ddpf(Ref<VectorX> x_next, const trajEl_t *t, int k, double **p, int N
 }
 
 void clampU(Ref<VectorU> u_, const trajEl_t *t, int k, double **p, int N) {
-    double limit;
-    const double *x= t->x.data();
-    double *u= u_.data();
+    double __attribute__((unused)) limit;
+    const double __attribute__((unused)) *x= t->x.data();
+    double __attribute__((unused)) *u= u_.data();
     
 <<print_aux_decl_assign([used_by_running], [])>>
 
@@ -84,8 +85,8 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     int *idx_;
     double *hx_, *h_sign;
 
-    const double *x= t->x.data();
-    double limit;
+    const double __attribute__((unused)) *x= t->x.data();
+    double __attribute__((unused)) limit;
     
 <<print_aux_decl_assign([used_by_running], [])>>
 <<print_deriv_decl_assign([used_by_running], [])>>
@@ -125,10 +126,9 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
 
 int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int cost_only) {
     int N= o->n_hor;
-    double **params= o->p;
+    double __attribute__((unused)) **params= o->p;
     
     trajEl_t *t= o->nominal->t;
-    trajFin_t *f= &o->nominal->f;
     trajEl_t *ct= c->t;
     trajFin_t *cf= &c->f;
     
@@ -140,7 +140,8 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int co
     if(!cost_only)
         ct->x= o->x0;
 
-    for(int k= 0; k<N; k++, t++, ct++, m++) {
+    int k;
+    for(k= 0; k<N; k++, t++, ct++, m++) {
         if(!cost_only) {
             if(alpha!=0.0) {
                 VectorX dx= ct->x - t->x;
@@ -202,7 +203,8 @@ int calc_derivs(const tOptSet *o) {
         return 0;
     }
     
-    for(int k= N-1; k>=0; k--, t--, m--) {
+    int k;
+    for(k= N-1; k>=0; k--, t--, m--) {
         if(!calcLAuxDeriv(t, m, k, o)) break;
         if(!bp_derivsL(t, k, o->p)) break;
         
@@ -219,9 +221,9 @@ int calc_derivs(const tOptSet *o) {
 }
 
 static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
-    const double *x= t->x.data();
-    double **p= o->p;
-    const double w_pen= o->w_pen_l;
+    const double __attribute__((unused)) *x= t->x.data();
+    double __attribute__((unused)) **p= o->p;
+    const double __attribute__((unused)) w_pen= o->w_pen_l;
 
 <<print_aux([time_var, used_by_running], [denpends_on_u]);>>
 
@@ -231,10 +233,10 @@ static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const 
 } 
 
 static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
-    double **p= o->p;
-    const double w_pen= o->w_pen_l;
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
+    double __attribute__((unused)) **p= o->p;
+    const double __attribute__((unused)) w_pen= o->w_pen_l;
     
 <<print_aux_decl_assign([time_var, used_by_running], [denpends_on_u]);>>
 
@@ -246,10 +248,10 @@ static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const
 } 
 
 static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o) {
-    const double *x= t->x.data();
-    double **p= o->p;
-    const double w_pen= o->w_pen_f;
-    const int k= o->n_hor;
+    const double __attribute__((unused)) *x= t->x.data();
+    double __attribute__((unused)) **p= o->p;
+    const double __attribute__((unused)) w_pen= o->w_pen_f;
+    const int __attribute__((unused)) k= o->n_hor;
     
 <<print_aux([time_var, used_by_final], []);>>
 
@@ -259,10 +261,10 @@ static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptS
 } 
 
 static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
-    const double w_pen= o->w_pen_l;
-    double **p= o->p;
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
+    const double __attribute__((unused)) w_pen= o->w_pen_l;
+    double __attribute__((unused)) **p= o->p;
     
 <<print_aux_decl_assign([used_by_running], []);>>
 <<print_deriv_decl_assign([used_by_running], [time_var]);>>
@@ -275,8 +277,8 @@ static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOp
 }
 
 static int bp_derivsL(trajEl_t *t, int k, double **p) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
     
 <<print_aux_decl_assign([used_by_running], []);>>
 <<print_deriv_decl_assign([used_by_running], []);>>
@@ -309,10 +311,10 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
 }
 
 static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet *o) {
-    const double *x= t->x.data();
-    const double w_pen= o->w_pen_f;
-    double **p= o->p;
-    const int k= o->n_hor;
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) w_pen= o->w_pen_f;
+    double __attribute__((unused)) **p= o->p;
+    const int __attribute__((unused)) k= o->n_hor;
     
 <<print_aux_decl_assign([used_by_final], []);>>
 <<print_deriv_decl_assign([used_by_final], [time_var]);>>
@@ -325,7 +327,7 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
 }
 
 static int bp_derivsF(trajFin_t *t, int k, double **p) {
-    const double *x= t->x.data();
+    const double __attribute__((unused)) *x= t->x.data();
 <<print_aux_decl_assign([used_by_final], []);>>
 <<print_deriv_decl_assign([used_by_final], []);>>
 
@@ -337,7 +339,7 @@ static int bp_derivsF(trajFin_t *t, int k, double **p) {
 }
 
 static int init_running(trajEl_t *t, const tOptSet *o) {
-    double **p= o->p;
+    double __attribute__((unused)) **p= o->p;
     
     
     for(int k= 0; k<o->n_hor; k++, t++) {
@@ -377,8 +379,8 @@ static int init_running(trajEl_t *t, const tOptSet *o) {
 }
 
 static int init_final(trajFin_t *t, const tOptSet *o) {
-    double **p= o->p;
-    const int k= o->n_hor;
+    double __attribute__((unused)) **p= o->p;
+    const int __attribute__((unused)) k= o->n_hor;
 
 <<print_aux([used_by_final], [time_var]);>>
 <<print_aux_assign([used_by_final], [time_var]);>>
@@ -401,7 +403,7 @@ int init_trajectory(traj_t *t, const tOptSet *o) {
 }
 
 static int init_multipliers_running(const tOptSet *o) {
-    multipliersEl_t *m= o->multipliers.t;
+    multipliersEl_t __attribute__((unused)) *m= o->multipliers.t;
 
     for(int k= 0; k<o->n_hor; k++, m++) {
 <<if  n_hle#0 then gentran(literal("        for(int i= 0\; i<", eval(n_hle), "\; i++) { m->mu_le[i]= 0.0\; m->last_hle[i]= 0.0\; }", cr))>>
@@ -413,7 +415,7 @@ static int init_multipliers_running(const tOptSet *o) {
 }
 
 static int init_multipliers_final(tOptSet *o) {
-    multipliersFin_t *m= &o->multipliers.f;
+    multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
 
 <<if  n_hfe#0 then gentran(literal("    for(int i= 0\; i<", eval(n_hfe), "\; i++) { m->mu_fe[i]= 0.0\; m->last_hfe[i]= 0.0\; }", cr))>>
 
@@ -444,15 +446,15 @@ int init_opt(tOptSet *o) {
 
 static int update_multipliers_running(tOptSet *o, int init) {
     trajEl_t *t= o->nominal->t;
-    multipliersEl_t *m= o->multipliers.t;
-    const double w_pen= o->w_pen_l;
-    double **p= o->p;
+    multipliersEl_t __attribute__((unused)) *m= o->multipliers.t;
+    const double __attribute__((unused)) w_pen= o->w_pen_l;
+    double __attribute__((unused)) **p= o->p;
 
     int increase_pen= 0;
     
     for(int k= 0; k<o->n_hor; k++, m++, t++) {
-        const double *x= t->x.data();
-        const double *u= t->u.data();
+        const double __attribute__((unused)) *x= t->x.data();
+        const double __attribute__((unused)) *u= t->u.data();
         
 <<print_aux_decl_assign([used_by_running], []);>>
         
@@ -485,23 +487,23 @@ static int update_multipliers_running(tOptSet *o, int init) {
     }
     
     if(!init && increase_pen)
-        o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact1);
+        o->w_pen_l= std::min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact1);
         
     return 1;
 }
 
 static int update_multipliers_final(tOptSet *o, int init) {
     trajFin_t *t= &o->nominal->f;
-    multipliersFin_t *m= &o->multipliers.f;
+    multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
     
-    const double *x= t->x.data();
-    const double w_pen= o->w_pen_f;
-    double **p= o->p;
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) w_pen= o->w_pen_f;
+    double __attribute__((unused)) **p= o->p;
     
 <<print_aux_decl_assign([used_by_final], []);>>
     
     int increase_pen= 0;
-    int k= o->n_hor;
+    int __attribute__((unused)) k= o->n_hor;
 
 <<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfe do (
   gentran(if fabs(eval(do_replacements(concat('hfe_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hfe_, i))))>fabs(m\-\>last_hfe[eval(i-1)]) then increase_pen: 1),
@@ -519,7 +521,7 @@ static int update_multipliers_final(tOptSet *o, int init) {
 // TODO: maybe check test for sufficient complementarity reduction
 
     if(!init && increase_pen)
-        o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact1);
+        o->w_pen_f= std::min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact1);
 
     if(init) return 1;
 <<block([i], for i: 1 thru n_hfe do do_assign(concat(mu_fe_, i), mu_fe_next[i], 4, 0))>>
@@ -548,8 +550,8 @@ int get_g_size() {
 }
 
 int calcG(double g[], const trajEl_t *t, int k, double **p) {
-    const double *x= t->x.data();
-    const double *u= t->u.data();
+    const double __attribute__((unused)) *x= t->x.data();
+    const double __attribute__((unused)) *u= t->u.data();
     
 <<print_aux_decl_assign([used_by_running], []);>>
     

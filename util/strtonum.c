@@ -1,4 +1,5 @@
-#include <cmath>
+//#include <cmath>
+#include <math.h>
 #include "strtonum.h"
 
 int strtoint(const char* str, long *ret, const char **ret_ep) {

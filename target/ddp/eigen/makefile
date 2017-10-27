@@ -1,11 +1,11 @@
 OPTDEF_NAME:= $(PROBLEM_FILE:%.mac=%)
 PROBLEM_NAME:= $(OPTDEF_NAME:optDef%=%)
-PROGRAM:= $(PROBLEM_NAME:%=ddp%_plain_cli)
+PROGRAM:= $(PROBLEM_NAME:%=ddp%_eigen_cli)
 
 PROBLEM_FILE:=  optDef$(PROBLEM_NAME).mac
 
-GEN_DIR:= gendir_$(PROBLEM_NAME)_ddp_plain
-TEST_DIR:= testdir_$(PROBLEM_NAME)_ddp_plain
+GEN_DIR:= gendir_$(PROBLEM_NAME)_ddp_eigen
+TEST_DIR:= testdir_$(PROBLEM_NAME)_ddp_eigen
 WORKING_DIR := ${CURDIR}
 
 RESULT_FILE:=  $(TEST_DIR)/result_$(PROBLEM_NAME).dat
@@ -15,7 +15,7 @@ ITERATION_FILE:=  $(TEST_DIR)/iterations_$(PROBLEM_NAME).dat
 ITERATION_FILE_:=  $(TEST_DIR)/iterations_%.dat
 ITERATION_EPS:=  $(TEST_DIR)/iterations_$(PROBLEM_NAME).eps
 
-USER_FLAGS_MK:= $(OPTDEF_NAME)_plain.mk
+USER_FLAGS_MK:= $(OPTDEF_NAME)_eigen.mk
 
 ifeq ($(wildcard $(PROBLEM_FILE)),)
 $(error Problem file $(PROBLEM_FILE) not found)
@@ -26,12 +26,12 @@ endif
 OBJ_DIR:= $(GEN_DIR)/obj
 
 MKDIR_P:= mkdir -p
-CC:= gcc
+CPP:= g++
 INCLUDES:= -I$(DDP_BASE_DIR) -I$(GEN_DIR) -I$(DDP_BASE_DIR)/../../../util/inih -I$(DDP_BASE_DIR)/../../../util
-CFLAGS:= $(USER_FLAGS) -Wall
+CPPFLAGS:= $(USER_FLAGS) -Wall -std=c++0x 
 LIBS= -lm
 
-TARGET_OBJS:= back_pass.o boxQP.o iLQG.o line_search.o ddp_cli.o matMult.o cholesky.o printMat.o
+TARGET_OBJS:= back_pass.o boxQP.o iterate.o line_search.o printMat.o ddp_cli.o
 GEN_OBJS:= iLQG_func.o
 CLI_OBJS:= strtonum.o ini.o
 OBJS_:= $(TARGET_OBJS) $(GEN_OBJS) $(CLI_OBJS) 
@@ -49,17 +49,16 @@ $(OBJS:.o=.d) : ;
 -include $(OBJS:.o=.d)
 
 define COMPILE_CMD=
-$(CC) -MMD -MT $@ -MP -c $(CFLAGS) $(INCLUDES) $< -o $@
+$(CPP) -MMD -MT $@ -MP -c $(CPPFLAGS) $(INCLUDES) $< -o $@
 endef
-#$(CC) -MM $(CFLAGS) $(INCLUDES) $< -MT $@ -MP -MF $(GEN_DIR)/obj/$*.d
 
 $(PROGRAM) : $(OBJS)
-	$(CC) $(OBJS) -o $(PROGRAM) $(LIBS)
+	$(CPP) $(OBJS) -o $(PROGRAM) $(LIBS)
 
-$(GEN_DIR)/obj/%.o : $(GEN_DIR)/%.c $(GEN_DIR)/iLQG_problem.h
+$(GEN_DIR)/obj/%.o : $(GEN_DIR)/%.cpp $(GEN_DIR)/iLQG_problem.h
 	$(COMPILE_CMD)
 
-$(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/%.c $(GEN_DIR)/iLQG_problem.h
+$(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/%.cpp $(GEN_DIR)/iLQG_problem.h
 	$(COMPILE_CMD)
 
 $(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/../../../util/%.c
@@ -69,12 +68,12 @@ $(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/../../../util/inih/%.c
 	$(COMPILE_CMD)
 
 
-$(GEN_DIR)/%_func.c $(GEN_DIR)/%_problem.h : $(PROBLEM_FILE) | $(GEN_DIR)
+$(GEN_DIR)/%_func.cpp $(GEN_DIR)/%_problem.h : $(PROBLEM_FILE) | $(GEN_DIR)
 	@$(RM) $(GEN_DIR)/maxima_complete; \
 	cd $(DDP_BASE_DIR); \
 	maxima -q --batch-string="load(\"make_iLQG.mac\")\$$ gen_ddp(\"$(WORKING_DIR)/$(PROBLEM_FILE)\", \"$(WORKING_DIR)/$(GEN_DIR)\")\$$" 2>$(WORKING_DIR)/$(GEN_DIR)/maxima_errors.log && \
 	if [ -s  "$(WORKING_DIR)/$(GEN_DIR)/maxima_errors.log" ] || ! [ -e  "$(WORKING_DIR)/$(GEN_DIR)/maxima_complete" ]; \
-	then mv -f $(WORKING_DIR)/$(GEN_DIR)/iLQG_func.c $(WORKING_DIR)/$(GEN_DIR)/faulty_iLQG_func.c; \
+	then mv -f $(WORKING_DIR)/$(GEN_DIR)/iLQG_func.cpp $(WORKING_DIR)/$(GEN_DIR)/faulty_iLQG_func.cpp; \
 	mv -f $(WORKING_DIR)/$(GEN_DIR)/iLQG_problem.h $(WORKING_DIR)/$(GEN_DIR)/faulty_iLQG_problem.h; \
 	$(RM) $(GEN_DIR)/maxima_complete; \
 	exit 1; fi;
@@ -111,7 +110,7 @@ $(PROBLEM_FILE) : ;
 
 $(USER_FLAGS_MK) : 
 	@echo \# Here you can specify additional compiler flags > $(USER_FLAGS_MK)
-	@echo \#USER_FLAGS:= -O2 -g >> $(USER_FLAGS_MK)
+	@echo \#USER_FLAGS:= -O2 -g -march=native -mfpu=neon -mfloat-abi=hard -DEIGEN_NO_MALLOC -DEIGEN_NO_DEBUG -DEIGEN_DONT_PARALLELIZE >> $(USER_FLAGS_MK)
 
 .PHONY : clean all cli clean_cli 
 

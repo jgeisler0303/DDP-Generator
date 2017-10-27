@@ -10,12 +10,14 @@
 
 #include <math.h>
 
-#include "iLQG.hpp"
 #include "line_search.h"
+#include "matMult.h"
  
+
+   
 // return number of line searches if successfull, -1 if max number of line searches reached, -2 if inf or nan encountered
 int line_search(tOptSet *o) {
-    double expected, z, alpha, dcost= 0.0, cnew= 0.0;
+    double expected, z, alpha, dcost= INF, cnew= INF;
     int i, ret= -1;
     
     for(i= 0; i < o->n_alpha; i++) {
@@ -23,7 +25,7 @@ int line_search(tOptSet *o) {
         
         alpha= o->alpha[i];
         
-        if(forward_pass(o->candidates[0], o, alpha, cnew, 0)) {
+        if(forward_pass(o->candidates[0], o, alpha, &cnew, 0)) {
             dcost= o->cost - cnew;
             expected= -alpha*(o->dV[0] + alpha*o->dV[1]);
             if(expected > 0)

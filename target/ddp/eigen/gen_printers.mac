@@ -79,7 +79,7 @@ print_aux_assign(dg_prerequisite_list, dg_exclude_list):= block([dg_a, i_work:1]
 print_aux_decl_assign(dg_prerequisite_list, dg_exclude_list):= block([dg_a, i_work:1],
   for dg_a in aux_def do (
     if test_properies(dg_a[1], dg_prerequisite_list, dg_exclude_list) then (
-        gentran(literal("    const double ", eval(aux_prefix), eval(dg_a[1]), "= ", "t->", eval(dg_a[1]), "\;", cr))
+        gentran(literal("    const double __attribute__((unused)) ", eval(aux_prefix), eval(dg_a[1]), "= ", "t->", eval(dg_a[1]), "\;", cr))
     ),
     i_work: i_work+1
   )
@@ -113,7 +113,7 @@ print_deriv_assign(dg_prerequisite_list, dg_exclude_list):= block([dg_a, i_work:
 print_deriv_decl_assign(dg_prerequisite_list, dg_exclude_list):= block([dg_a, i_work:1],
   for dg_a in aux_deriv do (
     if test_properies(dg_a[1], dg_prerequisite_list, dg_exclude_list) then (
-        gentran(literal("    const double ", eval(daux_prefix), eval(dg_a[1]), "= ", "t->", eval(dg_a[1]), "\;", cr))
+        gentran(literal("    const double __attribute__((unused)) ", eval(daux_prefix), eval(dg_a[1]), "= ", "t->", eval(dg_a[1]), "\;", cr))
     ),
     i_work: i_work+1
   )

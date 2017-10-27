@@ -37,7 +37,7 @@ if ~skip_gen
     end
     
 end
-
+return
 if ~exist('compile_switches', 'var')
     compile_switches= '-DDEBUG_BACKPASS=1 -DDEBUG_FORWARDPASS=1';
     compile_switches= '';
@@ -46,16 +46,16 @@ end
 mex_name= ['ddp' env.problem_title];
 build_file= fullfile(fileparts(env.problem_file), [mex_name '.' mexext]);
 
-compile_opt= ['-DPRNT=mexPrintf ', compile_switches, ' -v -I../common -I', env.build_dir, filesep];
+compile_opt= ['-DPRNT=mexPrintf ', compile_switches, ' -v -I. -I', env.build_dir, filesep];
 
-compile_files{1}= '../common/iLQG.c';
-compile_files{end+1}= '../common/iLQG_mex.c';
-compile_files{end+1}= '../common/line_search.c';
-compile_files{end+1}= '../common/back_pass.c';
-compile_files{end+1}= '../common/matMult.c';
-compile_files{end+1}= '../common/boxQP.c';
-compile_files{end+1}= '../common/cholesky.c';
-compile_files{end+1}= '../common/printMat.c';
+compile_files{1}= 'iLQG.c';
+compile_files{end+1}= 'iLQG_mex.c';
+compile_files{end+1}= 'line_search.c';
+compile_files{end+1}= 'back_pass.c';
+compile_files{end+1}= 'matMult.c';
+compile_files{end+1}= 'boxQP.c';
+compile_files{end+1}= 'cholesky.c';
+compile_files{end+1}= 'printMat.c';
 compile_files{end+1}= fullfile(env.build_dir, 'iLQG_func.c');
 
 old_cflags= getenv('CFLAGS');

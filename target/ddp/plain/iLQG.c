@@ -13,25 +13,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "mex.h"
-#ifndef  HAVE_OCTAVE
-#include "matrix.h"
-#endif
-
 #include "printMat.h"
 #include "iLQG.h"
 #include "line_search.h"
 #include "back_pass.h"
-
-#ifndef DEBUG_ILQG
-#define DEBUG_ILQG 1
-#else
-    #if PREFIX1(DEBUG_ILQG)==1
-    #define DEBUG_ILQG 1
-    #endif
-#endif
-
-#define TRACE(x) do { if (DEBUG_ILQG) PRNT x; } while (0)
 
 
 double default_alpha[]= {1.0, 0.3727594, 0.1389495, 0.0517947, 0.0193070, 0.0071969, 0.0026827, 0.0010000};
@@ -49,8 +34,11 @@ void printParams(double **p, int k) {
 }
 
 void standard_parameters(tOptSet *o) {
-    o->alpha= default_alpha;
-    o->n_alpha= 8;
+    int i;
+    
+    o->n_alpha= sizeof(default_alpha)/sizeof(default_alpha[0]);
+    for(i= 0; i<o->n_alpha; i++)
+        o->alpha[i]= default_alpha[i];
     o->tolFun= 1e-7;
     o->tolConstraint= 1e-7;
     o->tolGrad= 1e-5;
@@ -62,7 +50,6 @@ void standard_parameters(tOptSet *o) {
     o->lambdaMin= 1e-6;
     o->regType= 1;
     o->zMin= 0.0;
-    o->debug_level= 2;
     o->w_pen_init_l= 1.0;
     o->w_pen_init_f= 1.0;
     o->w_pen_max_l= INF;
@@ -70,30 +57,39 @@ void standard_parameters(tOptSet *o) {
     o->w_pen_fact1= 4.0; // 4...10 Bertsekas p. 123
     o->w_pen_fact2= 1.0;
     o->h_fd= 7.6294e-06;
+    o->log= NULL;
+    o->log_line= NULL;
+    o->iterations= 0;
 }
 
-char setOptParamErr_not_scalar[]= "parameter must be scalar";
-char setOptParamErr_alpha_range[]= "all alpha must be in the range [1.0..0.0)";
-char setOptParamErr_alpha_monotonic[]= "all alpha must be monotonically decreasing";
-char setOptParamErr_not_pos[]= "parameter must be positive";
-char setOptParamErr_lt_one[]= "parameter must be > 1";
-char setOptParamErr_gt_one[]= "parameter must be < 1";
-char setOptParamErr_range_one_two[]= "parameter must be in range [1..2]";
-char setOptParamErr_range_zero_one[]= "parameter must be in range [0..1)";
-char setOptParamErr_debug_level_range[]= "parameter must be in range [0..6]";
-char setOptParamErr_no_such_parameter[]= "no such parameter";
+const char setOptParamErr_not_scalar[]= "parameter must be scalar";
+const char setOptParamErr_alpha_range[]= "all alpha must be in the range [1.0..0.0)";
+#define str(s) #s
+#define stringify(s) str(s)
+#define MAX_ALPHA_STR stringify(MAX_ALPHA)
+const char setOptParamErr_alpha_n[]= "currently no more than " MAX_ALPHA_STR "values can be set for alpha";
+const char setOptParamErr_alpha_monotonic[]= "all alpha must be monotonically decreasing";
+const char setOptParamErr_not_pos[]= "parameter must be positive";
+const char setOptParamErr_lt_one[]= "parameter must be > 1";
+const char setOptParamErr_gt_one[]= "parameter must be < 1";
+const char setOptParamErr_range_one_two[]= "parameter must be in range [1..2]";
+const char setOptParamErr_range_zero_one[]= "parameter must be in range [0..1)";
+const char setOptParamErr_no_such_parameter[]= "no such parameter";
 
-char *setOptParam(tOptSet *o, const char *name, const double *value, const int n) {
+const char *setOptParam(tOptSet *o, const char *name, const double *value, const int n) {
     int i;
     
     if(strcmp(name, "alpha")==0) {
+        if(n>MAX_ALPHA)
+            return setOptParamErr_alpha_n;
         for(i= 0; i<n; i++) {
             if(value[i]<0.0 || value[i]>1.0)
                 return setOptParamErr_alpha_range;
             if(i>0 && value[i]>=value[i-1])
                 return setOptParamErr_alpha_monotonic;
         }
-        o->alpha= value;
+        for(i= 0; i<n; i++)
+            o->alpha[i]= value[i];
         o->n_alpha= n;
     } else if(strcmp(name, "tolFun")==0) {
         if(n!=1)
@@ -161,12 +157,6 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
         if(value[0]<0.0 || value[0]>=1.0)
             return setOptParamErr_range_zero_one;
         o->zMin= value[0];
-    } else if(strcmp(name, "debug_level")==0) {
-        if(n!=1)
-            return setOptParamErr_not_scalar;
-        if(value[0]<0.0 || value[0]>6.0)
-            return setOptParamErr_debug_level_range;
-        o->debug_level= value[0];
     } else if(strcmp(name, "w_pen_init_l")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
@@ -216,11 +206,113 @@ char *setOptParam(tOptSet *o, const char *name, const double *value, const int n
     return NULL;
 }
 
+const char *qpErrorStr(int e) {
+    static const char llt_error[]= "llt error";
+    static const char no_descent[]= "no descent";
+    static const char max_iterations[]= "max iterations";
+    static const char max_ls[]= "max line search";
+    static const char no_bounds[]= "no bounds";
+    static const char dcost_le_tol[]= "dcost<tol";
+    static const char grad_le_tol[]= "grad<tol";
+    static const char all_clamped[]= "all clamped";
+    static const char unknown[]= "unknown";
+    
+    if(e==-1) return llt_error;
+    if(e==-2) return no_descent;
+    if(e==1) return max_iterations;
+    if(e==2) return max_ls;
+    if(e==3) return no_bounds;
+    if(e==4) return dcost_le_tol;
+    if(e==5) return grad_le_tol;
+    if(e==6) return all_clamped;
+    return unknown;
+}
+
+void printBackPassInfo(tLogLine *l) {
+    printf("new deriv= %d, n back passes= %d, g_norm= %9.3f, lambda= %3.1f, w_pen= %9.3f / %9.3f", l->new_deriv, l->n_back_pass, l->g_norm, log10(l->lambda), l->w_pen_l, l->w_pen_f);
+}
+
+void printLineSearchInfo(tLogLine *l) {
+    printf("searches= %2d (#neg= %2d), z= %12.3g/%12.3g = %6.3f", l->n_line_searches, l->neg_exp_red, l->dcost, l->expected_red, l->z);    
+}
+
+void printLogLine(int i, tLogLine *l) {
+    printf("%3d: ", i);
+    switch(l->res) {
+        case 0:
+            if(l->line_search_res>0) {
+                printf("improvement: ");
+                printf("cost= %12.6g; ", l->cost);
+                printLineSearchInfo(l);
+            } else {
+                printf("no improvement: ");
+                printf("z= %12.3g/%12.3g (#neg= %2d))", l->dcost, l->expected_red, l->neg_exp_red);
+            }
+            printf("; ");
+            printBackPassInfo(l);
+            break;
+        case -1:
+            printf("ERROR nan or inf in derivatives at k= %d", l->derivs_fail);
+            break;
+        case -2:
+            printf("ERROR max lambda reached after %d back passes at k= %d with qp error \"%s\" (lambda= %f, w_pen_l= %f, w_pen_f= %f)", l->n_back_pass, l->back_pass_failed, qpErrorStr(l->qp_res), log10(l->lambda), l->w_pen_l, l->w_pen_f);
+            break;
+        case -3:
+            printf("ERROR nan or inf in forward pass at k= %d after %d searches (", l->forward_pass_fail, l->n_line_searches);
+            printBackPassInfo(l);
+            printf(")");
+            break;
+        case -4:
+            printf("ERROR max lambda reached after line search (");
+            printBackPassInfo(l);
+            printf("; z= %12.3g/%12.3g (#neg= %2d))", l->dcost, l->expected_red, l->neg_exp_red);
+            break;
+        case -5:
+            printf("ERROR max iterations reached (");
+            printLineSearchInfo(l);
+            printf("; ");
+            printBackPassInfo(l);
+            printf(")");
+            break;
+        case 1:
+            printf("grad < tol:  ");
+            printf("cost= %12.6g; ", l->cost);
+            printLineSearchInfo(l);
+            printf("; ");
+            printBackPassInfo(l);
+            break;
+        case 2:
+            printf("dcost < tol: ");
+            printf("cost= %12.6g; ", l->cost);
+            printLineSearchInfo(l);
+            printf("; ");
+            printBackPassInfo(l);
+            break;
+        default:
+            printf("ERROR unknown result code %d", l->res);
+            break;
+    }
+    printf("\n");
+}
+
+void printLog(tOptSet *o) {
+    int i;
+    
+    if(o->log) {
+        tLogLine *l= o->log;
+        for(i= 0; i <= o->iterations; l++, i++)
+            printLogLine(i, l);
+    } else
+        printf("No log recorded\n");
+}
+
 
 int iLQG(tOptSet *o) {
-    int iter, backPass, fwdPass= -2;
+    int iter, fwdPass;
     int newDeriv;
     double dlambda= o->dlambdaInit;
+    int res= 0;
+    
     o->lambda= o->lambdaInit;
     o->w_pen_l= o->w_pen_init_l;
     o->w_pen_f= o->w_pen_init_f;
@@ -229,62 +321,62 @@ int iLQG(tOptSet *o) {
     update_multipliers(o, 1);
     
     for(iter= 0; iter < o->max_iter; iter++) {
+        if(o->log) o->log_line= o->log+iter;
+
         // ====== STEP 1: differentiate dynamics and cost along new trajectory: integrated in back_pass
         if(newDeriv) {
-//             TRACE(("Calculating derivatives"));
+            if(o->log_line) o->log_line->new_deriv= 1;
+
             if(!calc_derivs(o)) {
-                TRACE(("Calculating derivatives failed.\n"));
-                backPass= -2;
+                res= -1;
                 break;
-            } else {
-//                 TRACE(("\n"));
             }
             
             newDeriv= 0;
         }
             
         // ====== STEP 2: backward pass, compute optimal control law and cost-to-go
-        backPass= 0;
-//         TRACE(("Back pass:\n"));
-        while(!backPass) {
+        if(o->log_line) o->log_line->w_pen_l= o->w_pen_l;
+        if(o->log_line) o->log_line->w_pen_f= o->w_pen_f;
+        while(o->lambda < o->lambdaMax) {
+            if(o->log_line) o->log_line->n_back_pass++;
+            if(o->log_line) o->log_line->lambda= o->lambda;
+            
             if(back_pass(o)) {
-                if(o->debug_level>=1)
-                    TRACE(("Back pass failed.\n"));
-
-                dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+                // this doesn't make sense: if dlambda==1/o->lambdaFactor then lambda will not change for one pass
+                // dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+                dlambda= o->lambdaFactor;
                 o->lambda= max(o->lambda * dlambda, o->lambdaMin);
-                if(o->lambda > o->lambdaMax)
-                    break;
             } else {
-                backPass= 1;
-//                 TRACE(("...done\n"));
+                break;
             }
         }
+        if(o->lambda >= o->lambdaMax) {
+            res= -2;
+            break;
+        }
+
+        if(o->log_line) o->log_line->g_norm= o->g_norm;
         
         // check for termination due to small gradient
         // TODO: add constraint tolerance check
+        // TODO: make lambda _term a parameter
         if(o->g_norm < o->tolGrad && o->lambda < 1e-5) {
-            dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
-            o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
-            if(o->debug_level>=1)
-                TRACE(("\nSUCCESS: gradient norm < tolGrad\n"));
+            res= 1;
             break;
         }
     
         // ====== STEP 3: line-search to find new control sequence, trajectory, cost
-        if(backPass)
-            fwdPass= line_search(o, iter);
-        else
-            break;
+        fwdPass= line_search(o);
+        if(o->log_line) o->log_line->line_search_res= fwdPass;
 
-        if(fwdPass==-2)
+        if(fwdPass==-2) {
+            res= -3;
             break;
+        }
         
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPass>0) {
-            if(o->debug_level>=1)
-                TRACE(("iter: %-3d  nr ls: %2d, cost: %-9.6g  red: %-9.3g  grad: %-9.3g  z: %-5.3g log10(lam): %3.1f w_pen: %-9.3g / %-9.3g\n", iter+1, fwdPass, o->cost, o->dcost, o->g_norm, o->dcost/o->expected, log10(o->lambda), o->w_pen_l, o->w_pen_f));
-            
             // decrease lambda
             dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
             o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
@@ -299,9 +391,7 @@ int iLQG(tOptSet *o) {
             // terminate ?
             // TODO: add constraint tolerance check
             if(o->dcost < o->tolFun) {
-                if(o->debug_level>=1)
-                    TRACE(("\nSUCCESS: cost change < tolFun\n"));
-            
+                res= 2;
                 break;
             }
             // adapt w_pen
@@ -311,7 +401,8 @@ int iLQG(tOptSet *o) {
 
         } else { // no cost improvement
             // increase lambda
-            dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+            // dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+            dlambda= o->lambdaFactor;
             o->lambda= max(o->lambda * dlambda, o->lambdaMin);
 
             if(o->w_pen_fact2>1.0) {
@@ -320,39 +411,23 @@ int iLQG(tOptSet *o) {
                 forward_pass(o->nominal, o, 0.0, &o->cost, 1);
             }
             
-            // print status
-            if(o->debug_level>=1)
-                TRACE(("iter: %-3d  REJECTED    expected: %-11.3g    actual: %-11.3g    log10lam: %3.1f w_pen_l: %-9.3g w_pen_l: %-9.3g\n", iter+1, o->expected , o->dcost, log10(o->lambda), o->w_pen_l, o->w_pen_f));
-            
-            // terminate ?
             if(o->lambda > o->lambdaMax) {
-                if(o->debug_level>=1)
-                    TRACE(("\nEXIT: lambda > lambdaMax\n"));
+                res= -4;
                 break;
             }
         }
     }
-    
+    if(iter>=o->max_iter)
+        res= -5;
     
     o->iterations= iter;
     
-    if(backPass==0) {
-        if(o->debug_level>=1)
-            TRACE(("\nEXIT: no descent direction found.\n\n"));
+    if(o->log_line) o->log_line->res= res;
         
-        return 0;    
-    } else if(iter>=o->max_iter) {
-        if(o->debug_level>=1)
-            TRACE(("\nEXIT: Maximum iterations reached.\n\n"));
-        
-        return 0;
-    } else if(fwdPass==-2 || backPass==-2) {
-        if(o->debug_level>=1)
-            TRACE(("\nEXIT: inf or nan encountered.\n\n"));
-        
-        return 0;
-    }
-    return 1;
+    if(res>0)
+        return 1;
+    
+    return 0;
 }
 
 void makeCandidateNominal(tOptSet *o, int idx) {

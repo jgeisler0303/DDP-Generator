@@ -8,6 +8,7 @@
 // title={Control-Limited Differential Dynamic Programming},
 // year={2014}, month={May}, doi={10.1109/ICRA.2014.6907001}}
 
+
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -16,23 +17,12 @@
 #include "boxQP.h"
 #include "cholesky.h"
 #include "matMult.h"
-#include "printMat.h"
 
 #ifndef MOD_CHOL
 #define MOD_CHOL 0
 #endif
 
-#ifndef DEBUG_BOXQP
-#define DEBUG_BOXQP 0
-#else
-    #if PREFIX1(DEBUG_BOXQP)==1
-    #define DEBUG_BOXQP 1
-    #endif
-#endif
 
-#define TRACE(x) do { if (DEBUG_BOXQP) PRNT x; } while (0)
-#define printVec_(x) do { if (DEBUG_BOXQP) printVec x; } while (0)
-#define printMat_(x) do { if (DEBUG_BOXQP) printMat x; } while (0)
    
 
 
@@ -80,11 +70,8 @@ int boxQP(double *H, const double *g, const double *lower, const double *upper, 
     }
     
     for(iter= 0; iter<maxIter; iter++) {
-        if(iter>0 && (oldvalue-value) < minRelImprove*fabs(oldvalue))
-            return 4;
-
         oldvalue= value;
-        printVec_((&oldvalue, 1, "oldvalue"));
+
         
         all_clamped= 1;
         clamps_changed= 0;
@@ -116,9 +103,6 @@ int boxQP(double *H, const double *g, const double *lower, const double *upper, 
         n_free_[0]= n_free;
         
 //         for(i= 0; i<n; i++) search[i]= !is_clamped[i];
-//         printVec_((search, n, "free"));
-        
-        TRACE(("gnorm= %g\n", sqrt(gnorm)));
         
         if(all_clamped)
             return 6;
@@ -189,7 +173,6 @@ int boxQP(double *H, const double *g, const double *lower, const double *upper, 
             sdotg+= search[i]*grad[i];
         
         if(sdotg>=0.0) {
-            printTri(H, n, "H");
             return -2;
         }
         
@@ -229,7 +212,8 @@ int boxQP(double *H, const double *g, const double *lower, const double *upper, 
             x[i]= xc[i];
         value= vc;
         
-        TRACE(("iter %-3d  value % -9.5g |g| %-9.3g  reduction %-9.3g  steps %-2d  n_clamped %d nfactor %d\n", iter+1, vc, sqrt(gnorm), oldvalue-vc, nstep, n-n_free, nfactor));
+        if((oldvalue-value) < minRelImprove*fabs(oldvalue))
+            return 4;
     }
     
     return 1;

@@ -12,6 +12,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+#include <algorithm>
 
 #include "iLQG.hpp"
 #include "line_search.h"
@@ -32,8 +33,9 @@ void printParams(double **p, int k) {
 }
 
 void standard_parameters(tOptSet *o) {
-    o->alpha= default_alpha;
-    o->n_alpha= 8;
+    o->n_alpha= sizeof(default_alpha)/sizeof(default_alpha[0]);
+    for(int i= 0; i<o->n_alpha; i++)
+        o->alpha[i]= default_alpha[i];
     o->tolFun= 1e-7;
     o->tolConstraint= 1e-7;
     o->tolGrad= 1e-5;
@@ -59,6 +61,10 @@ void standard_parameters(tOptSet *o) {
 
 const char setOptParamErr_not_scalar[]= "parameter must be scalar";
 const char setOptParamErr_alpha_range[]= "all alpha must be in the range [1.0..0.0)";
+#define str(s) #s
+#define stringify(s) str(s)
+#define MAX_ALPHA_STR stringify(MAX_ALPHA)
+const char setOptParamErr_alpha_n[]= "currently no more than " MAX_ALPHA_STR "values can be set for alpha";
 const char setOptParamErr_alpha_monotonic[]= "all alpha must be monotonically decreasing";
 const char setOptParamErr_not_pos[]= "parameter must be positive";
 const char setOptParamErr_lt_one[]= "parameter must be > 1";
@@ -69,13 +75,16 @@ const char setOptParamErr_no_such_parameter[]= "no such parameter";
 
 const char *setOptParam(tOptSet *o, const char *name, const double *value, const int n) {
     if(strcmp(name, "alpha")==0) {
+        if(n>MAX_ALPHA)
+            return setOptParamErr_alpha_n;
         for(int i= 0; i<n; i++) {
             if(value[i]<0.0 || value[i]>1.0)
                 return setOptParamErr_alpha_range;
             if(i>0 && value[i]>=value[i-1])
                 return setOptParamErr_alpha_monotonic;
         }
-        o->alpha= value;
+        for(int i= 0; i<n; i++)
+            o->alpha[i]= value[i];
         o->n_alpha= n;
     } else if(strcmp(name, "tolFun")==0) {
         if(n!=1)
@@ -329,9 +338,9 @@ int iterate(tOptSet *o) {
             
             if(back_pass(o)) {
                 // this doesn't make sense: if dlambda==1/o->lambdaFactor then lambda will not change for one pass
-                // dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+                // dlambda=std::max(dlambda * o->lambdaFactor, o->lambdaFactor);
                 dlambda= o->lambdaFactor;
-                o->lambda= max(o->lambda * dlambda, o->lambdaMin);
+                o->lambda= std::max(o->lambda * dlambda, o->lambdaMin);
             } else {
                 break;
             }
@@ -363,7 +372,7 @@ int iterate(tOptSet *o) {
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPass>0) {
             // decrease lambda
-            dlambda= min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
+            dlambda= std::min(dlambda / o->lambdaFactor, 1.0/o->lambdaFactor);
             o->lambda= o->lambda * dlambda * (o->lambda > o->lambdaMin);
 
             
@@ -386,13 +395,13 @@ int iterate(tOptSet *o) {
 
         } else { // no cost improvement
             // increase lambda
-            // dlambda= max(dlambda * o->lambdaFactor, o->lambdaFactor);
+            // dlambda= std::max(dlambda * o->lambdaFactor, o->lambdaFactor);
             dlambda= o->lambdaFactor;
-            o->lambda= max(o->lambda * dlambda, o->lambdaMin);
+            o->lambda= std::max(o->lambda * dlambda, o->lambdaMin);
 
             if(o->w_pen_fact2>1.0) {
-                o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact2);
-                o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact2);
+                o->w_pen_l= std::min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact2);
+                o->w_pen_f= std::min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact2);
                 forward_pass(o->nominal, o, 0.0, o->cost, 1);
             }
             

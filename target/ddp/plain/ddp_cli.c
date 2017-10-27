@@ -4,15 +4,12 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <iostream>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include "iLQG.hpp"
+#include "iLQG.h"
 #include "ini.h"
 #include "strtonum.h"
-
-using namespace Eigen;
 
 int *k_counters;
 double *u_nom[N_U];
@@ -20,9 +17,12 @@ double *u_nom[N_U];
 static int ddp_ini_handler(void* user, const char* section, const char* name, const char* val_str) {
     long ival;
     double dval;
-    int conv_res;
+    int conv_res, i, si;
     const char *endptr;
     const char *err_msg;
+    char u_name[10];        
+    double vals[32];
+    int count= 0;
 
     tOptSet *o= (tOptSet *)user;
 
@@ -48,11 +48,11 @@ static int ddp_ini_handler(void* user, const char* section, const char* name, co
             
             o->n_hor= ival;
             
-            for(int i= 0; i<N_U; i++)
+            for(i= 0; i<N_U; i++)
                 u_nom[i]= (double *)malloc(o->n_hor * sizeof(double));
             
-            for(int i=0; i<n_params; i++) {
-                int si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
+            for(i=0; i<n_params; i++) {
+                si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
                 o->p[i]= (double *)malloc(si * sizeof(double));
             }
             
@@ -66,7 +66,7 @@ static int ddp_ini_handler(void* user, const char* section, const char* name, co
                     fprintf(stderr, "Error reading x0: %s\n", strtonum_error(conv_res));
                     return 0;
                 }
-                o->x0(k_counters[N_U])= dval;
+                o->x0[k_counters[N_U]]= dval;
                 k_counters[N_U]++;
                 
                 if(*endptr==';' || *endptr==',') endptr++;
@@ -80,8 +80,7 @@ static int ddp_ini_handler(void* user, const char* section, const char* name, co
             return 1;
         }
         
-        for(int i= 0; i<N_U; i++) {
-            char u_name[10];
+        for(i= 0; i<N_U; i++) {
             snprintf(u_name, 9, "u_nom%d", i+1);
             
             if(strcasecmp(name, u_name)==0) {
@@ -119,9 +118,9 @@ static int ddp_ini_handler(void* user, const char* section, const char* name, co
             fprintf(stderr, "Parameter n_hor must be set before any parameter, ignoring %s\n", name);
             return 0;
         }
-        for(int i=0; i<n_params; i++) {
+        for(i=0; i<n_params; i++) {
             if(strcasecmp(name, paramdesc[i]->name)==0) {
-                int si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
+                si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
                 
                 endptr= val_str;
                 while(*endptr!='\0' && k_counters[N_U+1+i]<si) {
@@ -149,8 +148,7 @@ static int ddp_ini_handler(void* user, const char* section, const char* name, co
         return 0;
     }
     if(strcasecmp(section, "opt_param")==0) {
-        double vals[32];
-        int count= 0;
+        count= 0;
         endptr= val_str;
         while(*endptr!='\0' && count<32) {
             conv_res= strtodouble(val_str, &dval, &endptr);
@@ -243,11 +241,11 @@ void writeIter(tOptSet *o, const char* file_name) {
 int main(int argc, char* argv[]) {
     const char *ini_file, *res_file, *iter_file;
     clock_t begin, end;
-    int ret= 0;
+    int k, i, res, ret= 0;
     
-    tOptSet *o= new optSet();
-    standard_parameters(o);
-    o->p= (double **)malloc(n_params*sizeof(double *));
+    tOptSet o= INIT_OPTSET;
+    standard_parameters(&o);
+    o.p= (double **)malloc(n_params*sizeof(double *));
     k_counters= (int *)malloc((N_U+n_params+1)*sizeof(int));
     memset(k_counters, 0, (N_U+n_params+1)*sizeof(int));
     
@@ -268,7 +266,7 @@ int main(int argc, char* argv[]) {
     else
         iter_file= "ddp_iter.dat";
     
-    int res= ini_parse(ini_file, ddp_ini_handler, o);
+    res= ini_parse(ini_file, ddp_ini_handler, &o);
     if(res < 0) {
         printf("Can't load '%s'\n", ini_file);
         ret= 1;
@@ -277,13 +275,13 @@ int main(int argc, char* argv[]) {
             printf("There were errors reading '%s' in line %d\n", ini_file, res);
             ret= 1;
         }
-        if(o->n_hor==0) {
+        if(o.n_hor==0) {
             printf("Error: n_hor was not set\n");
             ret= 1;            
         } else {
-            for(int i= 0; i<N_U; i++) {
-                if(k_counters[i]<o->n_hor) {
-                    printf("Error: number of elements of nominal u[%d] is less than %d (actual= %d)\n", i, o->n_hor, k_counters[i]);
+            for(i= 0; i<N_U; i++) {
+                if(k_counters[i]<o.n_hor) {
+                    printf("Error: number of elements of nominal u[%d] is less than %d (actual= %d)\n", i, o.n_hor, k_counters[i]);
                     ret= 1;            
                 }
             }
@@ -291,8 +289,8 @@ int main(int argc, char* argv[]) {
                 printf("Error: number of elements of x0 is less than %d (actual= %d)\n", N_X, k_counters[N_U]);
                 ret= 1;            
             }
-            for(int i= 0; i<n_params; i++) {
-                int si= (paramdesc[i]->size==-1)? o->n_hor+1: paramdesc[i]->size;
+            for(i= 0; i<n_params; i++) {
+                int si= (paramdesc[i]->size==-1)? o.n_hor+1: paramdesc[i]->size;
                 if(k_counters[N_U+1+i]<si) {
                     printf("Error: number of elements of parameter %d is less than %d (actual= %d)\n", i, si, k_counters[N_U+1+i]);
                     ret= 1;            
@@ -303,80 +301,72 @@ int main(int argc, char* argv[]) {
     
     free(k_counters);
     if(ret) {
-        if(o->n_hor>0) {
-            for(int i= 0; i>n_params; i++)
-                free(o->p[i]);
-            for(int i= 0; i>N_U; i++)
+        if(o.n_hor>0) {
+            for(i= 0; i>n_params; i++)
+                free(o.p[i]);
+            for(i= 0; i>N_U; i++)
                 free(u_nom[i]);
         }
-        free(o->p);
-        delete o;
+        free(o.p);
         return ret;
     }
     
-    for(int i= 0; i<NUMBER_OF_THREADS+1; i++) {
-        o->trajectories[i].t= new trajEl_t[o->n_hor];
+    for(i= 0; i<NUMBER_OF_THREADS+1; i++) {
+        o.trajectories[i].t= malloc(sizeof(trajEl_t)*o.n_hor);
         // memset(o.trajectories[i].t, 1, sizeof(trajEl_t)*(N-1));
     }
-    o->multipliers.t= new multipliersEl_t[o->n_hor+1];
+    o.multipliers.t= malloc(sizeof(multipliersEl_t)*(o.n_hor+1));
     
-    o->log= (tLogLine *)malloc(o->max_iter*sizeof(tLogLine));
-    memset(o->log, 0, o->max_iter*sizeof(tLogLine));
+    o.log= (tLogLine *)malloc(o.max_iter*sizeof(tLogLine));
+    memset(o.log, 0, o.max_iter*sizeof(tLogLine));
     
     
-    
-#ifdef EIGEN_VECTORIZE
-    printf("Eigen vectorization on\n");
-#else
-    printf("Eigen vectorization off\n");
-#endif
     
     printf("Initializing constants\n");
-    if(!init_opt(o)) {
+    if(!init_opt(&o)) {
         printf("Error initializing constants\n");
         ret= 1;
     } else {
         printf("Initializing trajectory\n");
-        for(int k= 0; k<o->n_hor; k++) {
-            for(int i= 0; i<N_U; i++)
-                o->nominal->t[k].u(i)= u_nom[i][k];
+        for(k= 0; k<o.n_hor; k++) {
+            for(i= 0; i<N_U; i++)
+                o.nominal->t[k].u[i]= u_nom[i][k];
         }
         
         double cost;
-        if(!forward_pass(o->candidates[0], o, 0.0, cost, 0)) {
+        if(!forward_pass(o.candidates[0], &o, 0.0, &cost, 0)) {
             printf("Error in initial forward pass\n");
             ret= 1;
         } else {
-            o->cost= cost;
-            makeCandidateNominal(o, 0);
+            o.cost= cost;
+            makeCandidateNominal(&o, 0);
             
             printf("Starting DDP\n");
 
             begin = clock();
-            iterate(o);
+            iLQG(&o);
             end = clock();
 
-            printLog(o);
+            printLog(&o);
             printf("Time for DDP: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
             
-            writeResult(o, res_file);
-            writeIter(o, iter_file);
+            writeResult(&o, res_file);
+            writeIter(&o, iter_file);
         }
     }
     
 
-    for(int i= 0; i>n_params; i++)
-        free(o->p[i]);
-    for(int i= 0; i>N_U; i++)
+    for(i= 0; i>n_params; i++)
+        free(o.p[i]);
+    for(i= 0; i>N_U; i++)
         free(u_nom[i]);
-    free(o->log);
-    free(o->p);
+    free(o.log);
+    free(o.p);
     
-    for(int i= 0; i<NUMBER_OF_THREADS+1; i++)
-        delete[] o->trajectories[i].t;
+    for(i= 0; i<NUMBER_OF_THREADS+1; i++)
+        free(o.trajectories[i].t);
     
-    delete[] o->multipliers.t;
-    delete o;
+    free(o.multipliers.t);
     
     return ret;
 }

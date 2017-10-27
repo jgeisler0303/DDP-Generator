@@ -1,4 +1,4 @@
-loadfile("../../../redirect_trace.lisp")$
+loadfile("../common/redirect_trace.lisp")$
 
 gen_ddp(problem_file, target_dir):= block(
     print("problem file: ", problem_file),
@@ -20,6 +20,7 @@ gen_ddp(problem_file, target_dir):= block(
     batchload("gen_printers.mac"),
 
     gentranin("iLQG_problem.tem", [openw(sconcat(target_dir, "/iLQG_problem.h"))]),
-    gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.cpp"))])
+    gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.cpp"))]),
+    stringout(sconcat(target_dir, "/maxima_complete"), "done")
 )$
 

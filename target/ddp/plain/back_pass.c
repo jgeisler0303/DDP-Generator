@@ -12,28 +12,10 @@
 #include <string.h>
 #include <math.h>
 
-#include "mex.h"
-#ifndef  HAVE_OCTAVE
-#include "matrix.h"
-#endif
-
 #include "back_pass.h"
 #include "iLQG.h"
 #include "matMult.h"
 #include "boxQP.h"
-#include "printMat.h"
-
-#ifndef DEBUG_BACKPASS
-#define DEBUG_BACKPASS 0
-#else
-    #if PREFIX1(DEBUG_BACKPASS)==1
-    #define DEBUG_BACKPASS 1
-    #endif
-#endif
-
-#define TRACE(x) do { if (DEBUG_BACKPASS) PRNT x; } while (0)
-#define printVec_(x) do { if (DEBUG_BACKPASS) printVec x; } while (0)
-#define printMat_(x) do { if (DEBUG_BACKPASS) printMat x; } while (0)
    
 int back_pass(tOptSet *o) {
     double d1, g_norm_i, g_norm_max, g_norm_sum;
@@ -58,18 +40,14 @@ int back_pass(tOptSet *o) {
     memcpy(Vxx, f->cxx, sizeof(double)*sizeofQxx);
 
     for(k= N-1; k>=0; k--, t--) {
-//         TRACE(("k: %d\n", k));
-//         TRACE(("Qu=\n"));
         // Qu  = cu(:,i)      + fu(:,:,i)'*Vx(:,i+1);
         memcpy(Qu, t->cu, sizeof(double)*N_U);
         addMulVec(Qu, Vx, t->fu, N_X, N_U);
 
-//         TRACE(("Qx=\n"));
         // Qx  = cx(:,i)      + fx(:,:,i)'*Vx(:,i+1);
         memcpy(Qx, t->cx, sizeof(double)*N_X);
         addMulVec(Qx, Vx, t->fx, N_X, N_X);
 
-//         TRACE(("Qxu=\n"));
         // Qux = cxu(:,:,i)'  + fu(:,:,i)'*Vxx(:,:,i+1)*fx(:,:,i);
         memcpy(Qxu, t->cxu, sizeof(double)*sizeofQxu);
         addMul2Tri(Qxu, Vxx, t->fx, N_X, N_X, t->fu, N_X, N_U, dummy);
@@ -83,7 +61,6 @@ int back_pass(tOptSet *o) {
             Qxu[j_]+= d1;
         }
 #endif
-//         TRACE(("Quu=\n"));
         // Quu = cuu(:,:,i)   + fu(:,:,i)'*Vxx(:,:,i+1)*fu(:,:,i);
         memcpy(Quu, t->cuu, sizeof(double)*sizeofQuu);
         addSquareTri(Quu, Vxx, t->fu, N_X, N_U, dummy);
@@ -98,7 +75,6 @@ int back_pass(tOptSet *o) {
         }                
 #endif
         
-//         TRACE(("Qxx=\n"));
         // Qxx = cxx(:,:,i)   + fx(:,:,i)'*Vxx(:,:,i+1)*fx(:,:,i);
         memcpy(Qxx, t->cxx, sizeof(double)*sizeofQxx);
         addSquareTri(Qxx, Vxx, t->fx, N_X, N_X, dummy);
@@ -149,7 +125,11 @@ int back_pass(tOptSet *o) {
             memcpy(t->l, (t+1)->l, sizeof(double)*N_U);
 
         if((qpRes= boxQP(QuuF, Qu, t->lower, t->upper, t->l, R, L, grad, grad_clamped, search, is_clamped, &m_free, invHfree, N_U))<1) {
-            TRACE(("@k= %d: qpRes= %d \n", k, qpRes));
+            if(o->log_line) {
+                // TODO: maybe log last three results per iteration
+                o->log_line->back_pass_failed= k+1;
+                o->log_line->qp_res= qpRes;
+            }
             return 1;
         }
         
@@ -195,9 +175,7 @@ int back_pass(tOptSet *o) {
             }
             o->dV[1]+= 0.5*t->l[i_]*d1;
         }
-//         TRACE(("dV= %g, %g, %g, %g, %g\n", o->dV[0], o->dV[1], t->l[0], Qu[0], Qu[1]));
 
-//         TRACE(("Vx=\n"));
         // Vx(:,i)     = Qx  + K_i'*Quu*k_i + K_i'*Qu  + Qux'*k_i;
         memcpy(Vx, Qx, sizeof(double)*N_X);
         addMul2Tri(Vx, Quu, t->L, N_U, N_X, t->l, N_U, 1, dummy);
@@ -210,7 +188,6 @@ int back_pass(tOptSet *o) {
                 Vx[i_]+= Qxu[MAT_IDX(i_, j_, N_X)]*t->l[j_];
         
     
-//         TRACE(("Vxx=\n"));
         // Vxx(:,:,i)  = Qxx + K_i'*Quu*K_i + K_i'*Qux + Qux'*K_i;
         memcpy(Vxx, Qxx, sizeof(double)*sizeofQxx);
         addSquareTri(Vxx, Quu, t->L, N_U, N_X, dummy);
@@ -224,7 +201,6 @@ int back_pass(tOptSet *o) {
                 }
         
 
-//         TRACE(("g_norm=\n"));
         // g_norm= mean(max(abs(l) ./ (abs(u)+1),[],1));
         g_norm_max= 0.0;
         for(i_= 0; i_<N_U; i_++) {
@@ -236,5 +212,6 @@ int back_pass(tOptSet *o) {
     
     o->g_norm= g_norm_sum/((double)(o->n_hor-1));
     
+    if(o->log_line) o->log_line->back_pass_failed= 0;
     return 0;
 }

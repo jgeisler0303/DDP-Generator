@@ -1,6 +1,8 @@
 <<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+
 #include "iLQG.h"
 #include "matMult.h"
+#include <stdio.h>
 
 #define mcond(cond, a, dummy, b) ((cond)? a: b)
 #define sec(x) (1.0/cos(x))
@@ -128,7 +130,7 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
 int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only) {
     int i, k, j;
     double dx;
-    double *x0= o->x0;
+    const double *x0= o->x0;
     int N= o->n_hor;
     double **params= o->p;
     
@@ -164,11 +166,11 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int co
                     ct->u[j]= t->u[j];
             }
         }        
-        if(!calcXVariableAux(ct, m, k, o)) return 0;
+        if(!calcXVariableAux(ct, m, k, o)) break;
         
         if(!cost_only)
             clampU(ct->u, ct, k, params, N);
-        if(!calcXUVariableAux(ct, m, k, o)) return 0;
+        if(!calcXUVariableAux(ct, m, k, o)) break;
         
         if(!cost_only) {
             if(k>=N-1)
@@ -176,18 +178,26 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int co
             else
                 x_next= (ct+1)->x;
                 
-            if(!ddpf(x_next, ct, k, params, N)) return 0;
+            if(!ddpf(x_next, ct, k, params, N)) break;
         }
         
-        if(!ddpL(ct, k, o)) return 0;
+        if(!ddpL(ct, k, o)) break;
         csum[0]+= ct->c;        
     }
     
-    if(!calcFVariableAux(cf, mf, o)) return 0;
-        
-    if(!ddpF(cf, o))  return 0;
+    if(k<N) {
+        if(o->log_line) o->log_line->forward_pass_fail= k+1;
+        return 0;
+    }
+      
+    if(!calcFVariableAux(cf, mf, o) || !ddpF(cf, o)) {
+        if(o->log_line) o->log_line->forward_pass_fail= N+1;
+        return 0;
+    }
+    
     csum[0]+= cf->c;
         
+    if(o->log_line) o->log_line->forward_pass_fail= 0;
     return 1;
 }
 
@@ -201,17 +211,25 @@ int calc_derivs(const tOptSet *o) {
     multipliersEl_t *m= o->multipliers.t + N - 1;
     const multipliersFin_t *mf= &o->multipliers.f;
 
-    if(!calcFAuxDeriv(f, mf, o)) return 0;
-    if(!bp_derivsF(f, N, o->p)) return 0;
+    if(!calcFAuxDeriv(f, mf, o) || !bp_derivsF(f, N, o->p)) {
+        if(o->log_line) o->log_line->derivs_fail= N+1;
     
+        return 0;
+    }    
     for(k= N-1; k>=0; k--, t--, m--) {
-        if(!calcLAuxDeriv(t, m, k, o)) return 0;
-        if(!bp_derivsL(t, k, o->p)) return 0;
+        if(!calcLAuxDeriv(t, m, k, o)) break;
+        if(!bp_derivsL(t, k, o->p)) break;
         
         limitsU(t, k, o->p, N);
 
     }
-    return 1;
+    if(k>=0) {
+        if(o->log_line) o->log_line->derivs_fail= k+1;
+        return 0;
+    } else {
+        if(o->log_line) o->log_line->derivs_fail= 0;
+        return 1;
+    }
 }
 
 static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const tOptSet *o) {
@@ -297,15 +315,15 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
 #endif
 
 // derivatives of L
-<<print_grad('t\-\>cx, Lx);>>
+<<print_grad('t\-\>cx, Lx, true);>>
 
-<<print_hess('t\-\>cxx, Lxx);>>
+<<print_hess('t\-\>cxx, Lxx, true);>>
 
-<<print_grad('t\-\>cu, Lu);>>
+<<print_grad('t\-\>cu, Lu, true);>>
 
-<<print_hess('t\-\>cuu, Luu);>>
+<<print_hess('t\-\>cuu, Luu, true);>>
 
-<<print_hess('t\-\>cxu, Lxu);>>
+<<print_hess('t\-\>cxu, Lxu, true);>>
 
     return 1;
 }
@@ -332,9 +350,9 @@ static int bp_derivsF(trajFin_t *t, int k, double **p) {
 <<print_aux_decl_assign([used_by_final], []);>>
 <<print_deriv_decl_assign([used_by_final], []);>>
 
-<<print_grad('t\-\>cx, Fx);>>
+<<print_grad('t\-\>cx, Fx, true);>>
 
-<<print_hess('t\-\>cxx, Fxx);>>
+<<print_hess('t\-\>cxx, Fxx, true);>>
     return 1;
 }
 

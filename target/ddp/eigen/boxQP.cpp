@@ -8,26 +8,9 @@
 // title={Control-Limited Differential Dynamic Programming},
 // year={2014}, month={May}, doi={10.1109/ICRA.2014.6907001}}
 
-#include <stdio.h>
-#include <iostream>
-#include <string.h>
-#include <math.h>
+#include <cmath>
 
 #include "boxQP.h"
-#define DO_PREFIX1(VAL)  1 ## VAL
-#define PREFIX1(VAL)     DO_PREFIX1(VAL)
-
-
-#ifndef DEBUG_BOXQP
-#define DEBUG_BOXQP 0
-#else
-    #if PREFIX1(DEBUG_BOXQP)==1
-    #define DEBUG_BOXQP 1
-    #endif
-#endif
-
-#define TRACE(x) do { if (DEBUG_BOXQP) PRNT x; } while (0)
-
 
 int boxQP(const Ref<const MatrixUU> &H, const Ref<const VectorU> &g, const Ref<const VectorU> &lower, const Ref<const VectorU> &upper, Ref<VectorU> x, Ref<VectorU_int> is_clamped, int &n_free, LLT<MatrixUU_dyn, Upper> &llt) {
 // int boxQP(MatrixUU &H, const Ref<const VectorU> &g, const Ref<const VectorU> &lower, const Ref<const VectorU> &upper, Ref<VectorU> x, Ref<VectorU_int> is_clamped, int &n_free, Ref<MatrixUU_dyn> lltHfree) {
@@ -38,7 +21,6 @@ int boxQP(const Ref<const MatrixUU> &H, const Ref<const VectorU> &g, const Ref<c
     MatrixUU L;
     double gnorm= 0.0;
     int nfactor= 0;
-    double trace= 0.0;
     double sdotg;
     int all_clamped, clamps_changed, was_clamped;
     double step, vc;

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [[ $# -eq 0 ]] ; then
+    echo 'You need to supply at least the problem definition file as the first argument'
+    exit 1
+fi
+
+MY_PATH=$(dirname "$(readlink -f "$(which "$0")")")
+
+PROBLEM_FILE=$1
+shift
+make -j4 -O -f "$MY_PATH/makefile" PROBLEM_FILE="$PROBLEM_FILE" DDP_BASE_DIR="$MY_PATH" "$@"

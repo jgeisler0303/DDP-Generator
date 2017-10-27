@@ -11,7 +11,7 @@
 
 #include "iLQG_problem.h"
 
-#define INIT_OPTSET {0, 0, NULL, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, NULL, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, 0, 0, NULL, NULL, NULL, {0.0, 0.0}, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, NULL, {NULL}}
+#define INIT_OPTSET {0}
 
 #ifndef PRNT
 #define PRNT printf
@@ -21,22 +21,41 @@
 #define NUMBER_OF_THREADS 1
 #endif
 
-#define DO_PREFIX1(VAL)  1 ## VAL
-#define PREFIX1(VAL)     DO_PREFIX1(VAL)
-
-
 typedef struct paramDesc {
-  char *name;
-  int size;
-  int is_var;
+  const char *name;
+  const int size;
+  const int is_var;
 } tParamDesc;
+
+typedef struct logLine {
+    int new_deriv;
+    int derivs_fail;
+    int n_back_pass;
+    double w_pen_l;
+    double w_pen_f;
+    double lambda;
+    int back_pass_failed;
+    int qp_res;
+    double g_norm;
+    int forward_pass_fail;
+    int n_line_searches;
+    int neg_exp_red;
+    double alpha;
+    double z;
+    double cost;
+    double dcost;
+    double expected_red;
+    int line_search_res;
+    int res;
+} tLogLine;
+
+#define MAX_ALPHA 20
 
 typedef struct optSet {
     int n_hor;
-    int debug_level;
-    double *x0, new_cost, cost, dcost, lambda, g_norm, expected;
+    double x0[N_X], new_cost, cost, dcost, lambda, g_norm, expected;
     double **p;
-    const double *alpha;
+    double alpha[MAX_ALPHA];
     int n_alpha;
     double lambdaMax;
     double lambdaMin;
@@ -49,10 +68,6 @@ typedef struct optSet {
     double tolConstraint;
     double zMin;
     int regType;
-    int iterations;
-    int *log_linesearch;
-    double *log_z;
-    double *log_cost;
     double dV[2];
     
     double w_pen_l;
@@ -72,12 +87,18 @@ typedef struct optSet {
     traj_t trajectories[NUMBER_OF_THREADS+1];
     
     multipliers_t multipliers;
+
+    int iterations;
+    tLogLine *log;
+    tLogLine *log_line;
+    
 } tOptSet;
 
 void printParams(double **p, int k);
+void printLog(tOptSet *o);
 void standard_parameters(tOptSet *o);
 int iLQG(tOptSet *o);
-char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
+const char *setOptParam(tOptSet *o, const char *name, const double *value, const int n);
 int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(const tOptSet *o);
