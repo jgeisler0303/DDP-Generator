@@ -1,7 +1,7 @@
 #ifndef BOXQP_H
 #define BOXQP_H
 
-#include "iLQG.hpp"
+#include "ddp.h"
 #include <Eigen/Dense>
 
 using namespace Eigen;

@@ -19,8 +19,8 @@ gen_ddp(problem_file, target_dir):= block(
     batchload("../common/gen_rules.mac"),
     batchload("gen_printers.mac"),
 
-    gentranin("iLQG_problem.tem", [openw(sconcat(target_dir, "/iLQG_problem.h"))]),
-    gentranin("iLQG_func.tem", [openw(sconcat(target_dir, "/iLQG_func.cpp"))]),
+    gentranin("ddp_problem.tem", [openw(sconcat(target_dir, "/ddp_problem.h"))]),
+    gentranin("ddp_func.tem", [openw(sconcat(target_dir, "/ddp_func.cpp"))]),
     stringout(sconcat(target_dir, "/maxima_complete"), "done")
 )$
 

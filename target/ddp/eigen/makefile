@@ -32,7 +32,7 @@ CPPFLAGS:= $(USER_FLAGS) -Wall -std=c++0x
 LIBS= -lm
 
 TARGET_OBJS:= back_pass.o boxQP.o iterate.o line_search.o printMat.o ddp_cli.o
-GEN_OBJS:= iLQG_func.o
+GEN_OBJS:= ddp_func.o
 CLI_OBJS:= strtonum.o ini.o
 OBJS_:= $(TARGET_OBJS) $(GEN_OBJS) $(CLI_OBJS) 
 OBJS:= $(addprefix $(GEN_DIR)/obj/, $(OBJS_))
@@ -55,10 +55,10 @@ endef
 $(PROGRAM) : $(OBJS)
 	$(CPP) $(OBJS) -o $(PROGRAM) $(LIBS)
 
-$(GEN_DIR)/obj/%.o : $(GEN_DIR)/%.cpp $(GEN_DIR)/iLQG_problem.h
+$(GEN_DIR)/obj/%.o : $(GEN_DIR)/%.cpp $(GEN_DIR)/ddp_problem.h
 	$(COMPILE_CMD)
 
-$(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/%.cpp $(GEN_DIR)/iLQG_problem.h
+$(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/%.cpp $(GEN_DIR)/ddp_problem.h
 	$(COMPILE_CMD)
 
 $(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/../../../util/%.c
@@ -71,10 +71,10 @@ $(GEN_DIR)/obj/%.o : $(DDP_BASE_DIR)/../../../util/inih/%.c
 $(GEN_DIR)/%_func.cpp $(GEN_DIR)/%_problem.h : $(PROBLEM_FILE) | $(GEN_DIR)
 	@$(RM) $(GEN_DIR)/maxima_complete; \
 	cd $(DDP_BASE_DIR); \
-	maxima -q --batch-string="load(\"make_iLQG.mac\")\$$ gen_ddp(\"$(WORKING_DIR)/$(PROBLEM_FILE)\", \"$(WORKING_DIR)/$(GEN_DIR)\")\$$" 2>$(WORKING_DIR)/$(GEN_DIR)/maxima_errors.log && \
+	maxima -q --batch-string="load(\"make_ddp.mac\")\$$ gen_ddp(\"$(WORKING_DIR)/$(PROBLEM_FILE)\", \"$(WORKING_DIR)/$(GEN_DIR)\")\$$" 2>$(WORKING_DIR)/$(GEN_DIR)/maxima_errors.log && \
 	if [ -s  "$(WORKING_DIR)/$(GEN_DIR)/maxima_errors.log" ] || ! [ -e  "$(WORKING_DIR)/$(GEN_DIR)/maxima_complete" ]; \
-	then mv -f $(WORKING_DIR)/$(GEN_DIR)/iLQG_func.cpp $(WORKING_DIR)/$(GEN_DIR)/faulty_iLQG_func.cpp; \
-	mv -f $(WORKING_DIR)/$(GEN_DIR)/iLQG_problem.h $(WORKING_DIR)/$(GEN_DIR)/faulty_iLQG_problem.h; \
+	then mv -f $(WORKING_DIR)/$(GEN_DIR)/ddp_func.cpp $(WORKING_DIR)/$(GEN_DIR)/faulty_ddp_func.cpp; \
+	mv -f $(WORKING_DIR)/$(GEN_DIR)/ddp_problem.h $(WORKING_DIR)/$(GEN_DIR)/faulty_ddp_problem.h; \
 	$(RM) $(GEN_DIR)/maxima_complete; \
 	exit 1; fi;
 
@@ -114,4 +114,4 @@ $(USER_FLAGS_MK) :
 
 .PHONY : clean all cli clean_cli 
 
-.SECONDARY : $(GEN_DIR)/iLQG_func.c $(GEN_DIR)/iLQG_problem.h
+.SECONDARY : $(GEN_DIR)/ddp_func.c $(GEN_DIR)/ddp_problem.h

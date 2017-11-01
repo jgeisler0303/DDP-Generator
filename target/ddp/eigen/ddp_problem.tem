@@ -1,13 +1,12 @@
-<<gentran(literal("\/\* File generated form template iLQG_problem.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
-#ifndef ILQG_PROBLEM_H
-#define ILQG_PROBLEM_H
+<<gentran(literal("\/\* File generated form template ddp_problem.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#ifndef DDP_PROBLEM_H
+#define DDP_PROBLEM_H
 
 #include <cmath>
 #include <limits>
 #include <Eigen/Dense>
 
 #define isNANorINF(v) (!std::isfinite(v))
-#define INF (std::numeric_limits<double>::infinity())
 
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
@@ -78,18 +77,14 @@ typedef struct {
 
 typedef struct {
 <<if n_hle#0 then gentran(literal("    double mu_le[", eval(n_hle), "]\;", cr))>>
-<<if n_hle#0 then gentran(literal("    double last_hle[", eval(n_hle), "]\;", cr))>>
 
 <<if n_hli#0 then gentran(literal("    double mu_li[", eval(n_hli), "]\;", cr))>>
-<<if n_hli#0 then gentran(literal("    double last_hli[", eval(n_hli), "]\;", cr))>>
 } multipliersEl_t;
 
 typedef struct {
 <<if n_hfe#0 then gentran(literal("    double mu_fe[", eval(n_hfe), "]\;", cr))>>
-<<if n_hfe#0 then gentran(literal("    double last_hfe[", eval(n_hfe), "]\;", cr))>>
 
 <<if n_hfi#0 then gentran(literal("    double mu_fi[", eval(n_hfi), "]\;", cr))>>
-<<if n_hfi#0 then gentran(literal("    double last_hfi[", eval(n_hfi), "]\;", cr))>>
 } multipliersFin_t;
 
 typedef struct {
@@ -97,4 +92,4 @@ typedef struct {
     multipliersFin_t f;
 } multipliers_t;
 
-#endif // ILQG_PROBLEM_H
+#endif // DDP_PROBLEM_H

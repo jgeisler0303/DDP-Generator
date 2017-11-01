@@ -1,16 +1,6 @@
-// C implementation of line search from http://www.mathworks.com/matlabcentral/fileexchange/52069-ilqg-ddp-trajectory-optimization by Yuval Tassa
-// Copyright (c) 2016 Jens Geisler
-//
-// BIBTeX:
-// @INPROCEEDINGS{
-// author={Tassa, Y. and Mansard, N. and Todorov, E.},
-// booktitle={Robotics and Automation (ICRA), 2014 IEEE International Conference on},
-// title={Control-Limited Differential Dynamic Programming},
-// year={2014}, month={May}, doi={10.1109/ICRA.2014.6907001}}
+#include <cmath>
 
-#include <math.h>
-
-#include "iLQG.hpp"
+#include "ddp.h"
 #include "line_search.h"
  
 // return number of line searches if successfull, -1 if max number of line searches reached, -2 if inf or nan encountered
@@ -53,6 +43,8 @@ int line_search(tOptSet *o) {
     
     o->new_cost= cnew;
     o->dcost= dcost;
+    o->last_z= z;
+    o->n_ls= i+1;
 
     return ret;
 }

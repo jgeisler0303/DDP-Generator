@@ -1,8 +1,8 @@
-// MATLAB Mex function wrapper for iLQG algorithm
+// MATLAB Mex function wrapper for DDP algorithm
 // Copyright (c) 2016 Jens Geisler
 
 
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
@@ -13,7 +13,7 @@
 #include "matrix.h"
 #endif
 
-#include "iLQG.hpp"
+#include "ddp.h"
 
 using namespace Eigen;
 

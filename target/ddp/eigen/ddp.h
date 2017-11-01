@@ -1,5 +1,9 @@
-#ifndef ILQG_H
-#define ILQG_H
+#ifndef DDP_H
+#define DDP_H
+
+#ifndef PRNT
+#define PRNT printf
+#endif
 
 #ifndef FULL_DDP
     #define FULL_DDP 1
@@ -9,20 +13,15 @@
     #define CONSTRAINT_UX 1
 #endif
 
-#include "iLQG_problem.h"
+#include "ddp_problem.h"
 
 #define INIT_OPTSET {0}
-
-#ifndef PRNT
-#define PRNT printf
-#endif
 
 #ifndef NUMBER_OF_THREADS
 #define NUMBER_OF_THREADS 1
 #endif
 
-#define DO_PREFIX1(VAL)  1 ## VAL
-#define PREFIX1(VAL)     DO_PREFIX1(VAL)
+#define INF (std::numeric_limits<double>::infinity())
 
 
 typedef struct paramDesc {
@@ -51,6 +50,11 @@ typedef struct logLine {
     double expected_red;
     int line_search_res;
     int res;
+    
+    int multiplier_action;
+    double contractGrad;
+    double contractConstr;
+    double maxConstraint;
 } tLogLine;
 
 #define MAX_ALPHA 20
@@ -65,13 +69,25 @@ typedef struct optSet {
     double lambdaMax;
     double lambdaMin;
     double lambdaInit;
-    double dlambdaInit;
     double lambdaFactor;
+    double lambdaFactorUpdateP;
+    double lambdaFactorUpdateM;
+    
+    double maxConstraint;
+    double contractGrad;
+    double contractConstr;
+    double contractGradMin;
+    double contractConstrMin;
+    double contractGradInit;
+    double contractConstrInit;
+    
     int max_iter;
     double tolGrad;
     double tolFun;
     double tolConstraint;
     double zMin;
+    int n_ls;
+    double last_z;
     int regType;
     double dV[2];
     
@@ -81,8 +97,7 @@ typedef struct optSet {
     double w_pen_max_f;
     double w_pen_init_l;
     double w_pen_init_f;
-    double w_pen_fact1;
-    double w_pen_fact2;
+    double w_pen_fact;
     
     double h_fd;
     
@@ -109,7 +124,8 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int co
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(const tOptSet *o);
 int init_opt(tOptSet *o);
-int update_multipliers(tOptSet *o, int init);
+int update_multipliers(tOptSet *o);
+void calc_constraint_violation(tOptSet *o);
 int get_g_size();
 int calcG(double g[], const trajEl_t *t, int k, double *p[]);
 
@@ -119,4 +135,4 @@ extern int n_vars;
 extern tParamDesc *paramdesc[];
 
 
-#endif /* ILQG_H */
+#endif /* DDP_H */

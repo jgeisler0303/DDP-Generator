@@ -1,14 +1,10 @@
-// MATLAB Mex function wrapper for iLQG algorithm
-// Copyright (c) 2016 Jens Geisler
-
-
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <iostream>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include "iLQG.hpp"
+#include "ddp.h"
 #include "ini.h"
 #include "strtonum.h"
 

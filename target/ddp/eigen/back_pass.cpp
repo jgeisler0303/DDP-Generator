@@ -1,17 +1,7 @@
-// iLQG back pass c implementation of http://www.mathworks.com/matlabcentral/fileexchange/52069-ilqg-ddp-trajectory-optimization by Yuval Tassa
-// Copyright (c) 2016 Jens Geisler
-//
-// BIBTeX:
-// @INPROCEEDINGS{
-// author={Tassa, Y. and Mansard, N. and Todorov, E.},
-// booktitle={Robotics and Automation (ICRA), 2014 IEEE International Conference on},
-// title={Control-Limited Differential Dynamic Programming},
-// year={2014}, month={May}, doi={10.1109/ICRA.2014.6907001}}
-
-#include <math.h>
+#include <cmath>
 
 #include "back_pass.h"
-#include "iLQG.hpp"
+#include "ddp.h"
 #include "boxQP.h"
 
 
@@ -24,7 +14,7 @@ static void addVecTensXU(Ref<MatrixXU> Qxu, const Ref<const VectorX> Vx, trajEl_
 #endif
 
 int back_pass(tOptSet *o) {
-    double g_norm_i, g_norm_max, g_norm_sum;
+    double g_norm_sum;
     int N= o->n_hor;
     VectorU Qu;
     VectorU_int is_clamped;
@@ -158,15 +148,23 @@ int back_pass(tOptSet *o) {
         Vxx.triangularView<Upper>()+= Qxx + Qxx.transpose();
         
         // g_norm= mean(max(abs(l) ./ (abs(u)+1),[],1));
-        g_norm_max= 0.0;
-        for(int i_= 0; i_<N_U; i_++) {
-            g_norm_i= fabs(t->l(i_)) / (fabs(t->u(i_))+1.0);
-            if(g_norm_i>g_norm_max) g_norm_max= g_norm_i;
+        // double g_norm_max= 0.0;
+        // for(int i_= 0; i_<N_U; i_++) {
+        //     double g_norm_i= fabs(t->l(i_)) / (fabs(t->u(i_))+1.0);
+        //     if(g_norm_i>g_norm_max) g_norm_max= g_norm_i;
+        // }
+        // g_norm_sum+= g_norm_max;
+        // alternative form based on doi:10.1115/1.2826677
+        for(int i= 0; i<N_U; i++) {
+            // TODO:this assumes that all uhave similar magnitude!
+            double g_norm_i= Qu(i);
+            if(is_clamped(i)==1 && g_norm_i>0.0) g_norm_i= 0.0;
+            else if(is_clamped(i)==2 && g_norm_i<0.0) g_norm_i= 0.0;
+            g_norm_sum+= g_norm_i*g_norm_i;
         }
-        g_norm_sum+= g_norm_max;
     }
     
-    o->g_norm= g_norm_sum/((double)(o->n_hor-1));
+    o->g_norm= sqrt(g_norm_sum/((double)(o->n_hor*N_U)));
 
     if(o->log_line) o->log_line->back_pass_failed= 0;
     return 0;

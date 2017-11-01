@@ -1,8 +1,9 @@
-<<gentran(literal("\/\* File generated form template iLQG_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
-#include "iLQG.hpp"
+<<gentran(literal("\/\* File generated form template ddp_func.tem on ", eval(timedate()), ". Do not edit! \*\/", cr, cr))>>
+#include "ddp.h"
 #include <algorithm>
 
 using namespace Eigen;
+using namespace std;
 
 #define mcond(cond, a, dummy, b) ((cond)? a: b)
 #define mqapply(f, i, j) f(i, j)
@@ -41,7 +42,7 @@ static int ddpL(trajEl_t *t, int k, const tOptSet *o) {
     const double __attribute__((unused)) *u= t->u.data();
     double __attribute__((unused)) **p= o->p;
     
-<<print_aux_decl_assign([used_by_running], [])>>
+<<print_aux_decl_assign([used_by_running], [], 4)>>
     
 <<do_assign('t\-\>c, L, 4, 0)>>
     
@@ -53,7 +54,7 @@ static int ddpF(trajFin_t *t, const tOptSet *o) {
     const int __attribute__((unused)) k= o->n_hor;
     double __attribute__((unused)) **p= o->p;
     
-<<print_aux_decl_assign([used_by_final], [])>>
+<<print_aux_decl_assign([used_by_final], [], 4)>>
 
 <<do_assign('t\-\>c, F, 4, 0)>>
     
@@ -63,7 +64,7 @@ static int ddpF(trajFin_t *t, const tOptSet *o) {
 static int ddpf(Ref<VectorX> x_next, const trajEl_t *t, int k, double **p, int N) {
     const double __attribute__((unused)) *x= t->x.data();
     const double __attribute__((unused)) *u= t->u.data();
-<<print_aux_decl_assign([used_by_running], [])>>
+<<print_aux_decl_assign([used_by_running], [], 4)>>
     
 <<block([i], for i:1 thru nx do do_assign(x_next(i-1), f[x[i]], 4, 0))>>
     return 1;
@@ -74,7 +75,7 @@ void clampU(Ref<VectorU> u_, const trajEl_t *t, int k, double **p, int N) {
     const double __attribute__((unused)) *x= t->x.data();
     double __attribute__((unused)) *u= u_.data();
     
-<<print_aux_decl_assign([used_by_running], [])>>
+<<print_aux_decl_assign([used_by_running], [], 4)>>
 
 <<block([i], for i: 1 thru nh do do_clamp(i))>>
 }
@@ -88,7 +89,7 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     const double __attribute__((unused)) *x= t->x.data();
     double __attribute__((unused)) limit;
     
-<<print_aux_decl_assign([used_by_running], [])>>
+<<print_aux_decl_assign([used_by_running], [], 4)>>
 <<print_deriv_decl_assign([used_by_running], [])>>
 
     t->lower= VectorU::Constant(-INF);
@@ -238,7 +239,7 @@ static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const
     double __attribute__((unused)) **p= o->p;
     const double __attribute__((unused)) w_pen= o->w_pen_l;
     
-<<print_aux_decl_assign([time_var, used_by_running], [denpends_on_u]);>>
+<<print_aux_decl_assign([time_var, used_by_running], [denpends_on_u], 4);>>
 
 <<print_aux([denpends_on_u, used_by_running], []);>>
 
@@ -266,7 +267,7 @@ static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOp
     const double __attribute__((unused)) w_pen= o->w_pen_l;
     double __attribute__((unused)) **p= o->p;
     
-<<print_aux_decl_assign([used_by_running], []);>>
+<<print_aux_decl_assign([used_by_running], [], 4);>>
 <<print_deriv_decl_assign([used_by_running], [time_var]);>>
 
 <<print_deriv([time_var, used_by_running], []);>>
@@ -280,7 +281,7 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
     const double __attribute__((unused)) *x= t->x.data();
     const double __attribute__((unused)) *u= t->u.data();
     
-<<print_aux_decl_assign([used_by_running], []);>>
+<<print_aux_decl_assign([used_by_running], [], 4);>>
 <<print_deriv_decl_assign([used_by_running], []);>>
     
 // derivatives of f
@@ -316,7 +317,7 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
     double __attribute__((unused)) **p= o->p;
     const int __attribute__((unused)) k= o->n_hor;
     
-<<print_aux_decl_assign([used_by_final], []);>>
+<<print_aux_decl_assign([used_by_final], [], 4);>>
 <<print_deriv_decl_assign([used_by_final], [time_var]);>>
 
 <<print_deriv([time_var, used_by_final], []);>>
@@ -328,7 +329,7 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
 
 static int bp_derivsF(trajFin_t *t, int k, double **p) {
     const double __attribute__((unused)) *x= t->x.data();
-<<print_aux_decl_assign([used_by_final], []);>>
+<<print_aux_decl_assign([used_by_final], [], 4);>>
 <<print_deriv_decl_assign([used_by_final], []);>>
 
     
@@ -406,9 +407,9 @@ static int init_multipliers_running(const tOptSet *o) {
     multipliersEl_t __attribute__((unused)) *m= o->multipliers.t;
 
     for(int k= 0; k<o->n_hor; k++, m++) {
-<<if  n_hle#0 then gentran(literal("        for(int i= 0\; i<", eval(n_hle), "\; i++) { m->mu_le[i]= 0.0\; m->last_hle[i]= 0.0\; }", cr))>>
+<<if  n_hle#0 then gentran(literal("        for(int i= 0\; i<", eval(n_hle), "\; i++) { m->mu_le[i]= 0.0\; }", cr))>>
 
-<<if  n_hli#0 then gentran(literal("        for(int i= 0\; i<", eval(n_hli), "\; i++) { m->mu_li[i]= 1.0\; m->last_hli[i]= 0.0\; }", cr))>>
+<<if  n_hli#0 then gentran(literal("        for(int i= 0\; i<", eval(n_hli), "\; i++) { m->mu_li[i]= 1.0\; }", cr))>>
     }
     
     return 1;
@@ -417,9 +418,9 @@ static int init_multipliers_running(const tOptSet *o) {
 static int init_multipliers_final(tOptSet *o) {
     multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
 
-<<if  n_hfe#0 then gentran(literal("    for(int i= 0\; i<", eval(n_hfe), "\; i++) { m->mu_fe[i]= 0.0\; m->last_hfe[i]= 0.0\; }", cr))>>
+<<if  n_hfe#0 then gentran(literal("    for(int i= 0\; i<", eval(n_hfe), "\; i++) { m->mu_fe[i]= 0.0\; }", cr))>>
 
-<<if  n_hfi#0 then gentran(literal("    for(int i= 0\; i<", eval(n_hfi), "\; i++) { m->mu_fi[i]= 1.0\; m->last_hfi[i]= 0.0\; }", cr))>>
+<<if  n_hfi#0 then gentran(literal("    for(int i= 0\; i<", eval(n_hfi), "\; i++) { m->mu_fi[i]= 1.0\; }", cr))>>
     
     return 1;
 }
@@ -444,55 +445,76 @@ int init_opt(tOptSet *o) {
     return 1;
 }
 
-static int update_multipliers_running(tOptSet *o, int init) {
+void calc_constraint_violation(tOptSet *o) {
+    o->maxConstraint= 0.0;
+    {
+    trajEl_t *t= o->nominal->t;
+    multipliersEl_t __attribute__((unused)) *m= o->multipliers.t;
+    const double __attribute__((unused)) inv_w_pen= 1.0/o->w_pen_l;
+    double __attribute__((unused)) infeasability_noncomplementarity;
+    
+    for(int k= 0; k<o->n_hor; k++, m++, t++) {
+<<print_aux_decl_assign([used_by_running], [], 8);>>
+
+<<block([i], for i: 1 thru n_hle do (
+    gentran(literal("        o->maxConstraint= std::max(o->maxConstraint, std::abs(", eval(do_replacements(concat('hle_, i))), "))\;", cr))
+))>>
+
+        // according to ON AUGMENTED LAGRANGIAN METHODS WITH GENERAL LOWER-LEVEL CONSTRAINTS, https://doi.org/10.1137/060654797
+<<block([i], for i: 1 thru n_hli do (
+    gentran(literal("        infeasability_noncomplementarity= std::max(", eval(do_replacements(concat('hli_, i))), ", -1.0*", eval(concat('mu_li_, i)), "*inv_w_pen)\;", cr)),
+    gentran(literal("        o->maxConstraint= std::max(o->maxConstraint, std::abs (infeasability_noncomplementarity))\;", cr))
+))>>
+    }
+    }
+    {
+    trajFin_t *t= &o->nominal->f;
+    multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
+    const double __attribute__((unused)) inv_w_pen= 1.0/o->w_pen_f;
+    double __attribute__((unused)) infeasability_noncomplementarity;
+
+<<print_aux_decl_assign([used_by_final], [], 4);>>
+    
+<<block([i], for i: 1 thru n_hfe do (
+    gentran(literal("    o->maxConstraint= std::max(o->maxConstraint, std::abs(", eval(do_replacements(concat('hfe_, i))), "))\;", cr))
+))>>
+
+        // according to ON AUGMENTED LAGRANGIAN METHODS WITH GENERAL LOWER-LEVEL CONSTRAINTS, https://doi.org/10.1137/060654797
+<<block([i], for i: 1 thru n_hfi do (
+    gentran(literal("    infeasability_noncomplementarity= std::max(", eval(do_replacements(concat('hfi_, i))), ", -1.0*", eval(concat('mu_fi_, i)), "*inv_w_pen)\;", cr)),
+    gentran(literal("    o->maxConstraint= std::max(o->maxConstraint, std::abs (infeasability_noncomplementarity))\;", cr))
+))>>
+    }
+}
+
+static int update_multipliers_running(tOptSet *o) {
     trajEl_t *t= o->nominal->t;
     multipliersEl_t __attribute__((unused)) *m= o->multipliers.t;
     const double __attribute__((unused)) w_pen= o->w_pen_l;
     double __attribute__((unused)) **p= o->p;
 
-    int increase_pen= 0;
-    
     for(int k= 0; k<o->n_hor; k++, m++, t++) {
         const double __attribute__((unused)) *x= t->x.data();
         const double __attribute__((unused)) *u= t->u.data();
         
-<<print_aux_decl_assign([used_by_running], []);>>
+<<print_aux_decl_assign([used_by_running], [], 8);>>
         
-<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hle do (
-  gentran(if fabs(eval(do_replacements(concat('hle_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hle_, i))))>fabs(m\-\>last_hle[eval(i-1)]) then increase_pen: 1),
-  ?ccurrind\*: 4,
-  gentran(lrsetq(m\-\>last_hle[i-1], do_replacements(concat('hle_, i)))),
-  gentran(literal(cr))
-))>>
-
-<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hli do (
-  gentran(if eval(do_replacements(concat('hli_, i)))>o\-\>tolConstraint and o\-\>w_pen_fact1*eval(do_replacements(concat('hli_, i)))>m\-\>last_hli[eval(i-1)] then increase_pen: 1),
-  ?ccurrind\*: 4,
-  gentran(lrsetq(m\-\>last_hli[i-1], do_replacements(concat('hli_, i)))),
-  gentran(literal(cr))
-))>>
-// TODO: maybe check test for sufficient complementarity reduction
-
-    if(init) return 1;
 <<block([i], for i: 1 thru n_hle do do_assign(concat(mu_le_, i), mu_le_next[i], 8, 0))>>
 
-// inequality constraints according to D. Ruxton: Differential dynamic programming applied to continuous optimal control problems with state variable inequality constraints
+// inequality constraints according to D. Ruxton: Differential dynamic programming applied to continuous optimal control problems with state variable inequality constraints, also suggested by Bertsekas, D. P. (1982). Constrained optimization and Lagrange multiplier methods. pp 308, hat P_I version of P_I, Example 2 
 <<block([i], for i: 1 thru n_hli do (
-  gentran(literal("    if(", eval(do_replacements(concat('hli_, i))), ">=0) {", cr)),
+  gentran(literal("        if(", eval(do_replacements(concat('hli_, i))), ">=0) {", cr)),
   do_assign(concat('mu_li_, i), mu_li_A_next[i], 4*3, 0),
-  gentran(literal("    } else {", cr)),
+  gentran(literal("        } else {", cr)),
   do_assign(concat('mu_li_, i), mu_li_I_next[i], 4*3, 0),
-  gentran(literal("    }", cr, cr))
+  gentran(literal("        }", cr, cr))
 ))>>
     }
-    
-    if(!init && increase_pen)
-        o->w_pen_l= std::min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact1);
         
     return 1;
 }
 
-static int update_multipliers_final(tOptSet *o, int init) {
+static int update_multipliers_final(tOptSet *o) {
     trajFin_t *t= &o->nominal->f;
     multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
     
@@ -500,33 +522,12 @@ static int update_multipliers_final(tOptSet *o, int init) {
     const double __attribute__((unused)) w_pen= o->w_pen_f;
     double __attribute__((unused)) **p= o->p;
     
-<<print_aux_decl_assign([used_by_final], []);>>
+<<print_aux_decl_assign([used_by_final], [], 4);>>
     
-    int increase_pen= 0;
     int __attribute__((unused)) k= o->n_hor;
 
-<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfe do (
-  gentran(if fabs(eval(do_replacements(concat('hfe_, i))))>o\-\>tolConstraint and o\-\>w_pen_fact1*fabs(eval(do_replacements(concat('hfe_, i))))>fabs(m\-\>last_hfe[eval(i-1)]) then increase_pen: 1),
-  ?ccurrind\*: 4,
-  gentran(lrsetq(m\-\>last_hfe[i-1], do_replacements(concat('hfe_, i)))),
-  gentran(literal(cr))
-))>>
-
-<<block([i], ?ccurrind\*: 4, for i: 1 thru n_hfi do (
-  gentran(if eval(do_replacements(concat('hfi_, i)))>o\-\>tolConstraint and o\-\>w_pen_fact1*eval(do_replacements(concat('hfi_, i)))>m\-\>last_hfi[eval(i-1)] then increase_pen: 1),
-  ?ccurrind\*: 4,
-  gentran(lrsetq(m\-\>last_hfi[i-1], do_replacements(concat('hfi_, i)))),
-  gentran(literal(cr))
-))>>
-// TODO: maybe check test for sufficient complementarity reduction
-
-    if(!init && increase_pen)
-        o->w_pen_f= std::min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact1);
-
-    if(init) return 1;
 <<block([i], for i: 1 thru n_hfe do do_assign(concat(mu_fe_, i), mu_fe_next[i], 4, 0))>>
 
-// inequality constraints according to D. Ruxton: Differential dynamic programming applied to continuous optimal control problems with state variable inequality constraints
 <<block([i], for i: 1 thru n_hfi do (
   gentran(literal("    if(", eval(do_replacements(concat('hfi_, i))), ">=0) {", cr)),
   do_assign(concat('mu_fi_, i), mu_fi_A_next[i], 4*2, 0),
@@ -538,9 +539,9 @@ static int update_multipliers_final(tOptSet *o, int init) {
     return 1;
 }
 
-int update_multipliers(tOptSet *o, int init) {
-    if(!update_multipliers_running(o, init)) return 0;
-    if(!update_multipliers_final(o, init)) return 0;
+int update_multipliers(tOptSet *o) {
+    if(!update_multipliers_running(o)) return 0;
+    if(!update_multipliers_final(o)) return 0;
 
     return 1;
 }
@@ -553,7 +554,7 @@ int calcG(double g[], const trajEl_t *t, int k, double **p) {
     const double __attribute__((unused)) *x= t->x.data();
     const double __attribute__((unused)) *u= t->u.data();
     
-<<print_aux_decl_assign([used_by_running], []);>>
+<<print_aux_decl_assign([used_by_running], [], 4);>>
     
 <<block([i, i_: 0], if member(g, arrays) then for i in flatten(rest(arrayinfo(g), 2)) do (do_assign('g[i_], g[i], 4, 0), i_:i_+1))>>
     return(1);
