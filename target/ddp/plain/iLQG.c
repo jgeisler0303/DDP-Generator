@@ -242,7 +242,7 @@ void printLogLine(int i, tLogLine *l) {
         case 0:
             if(l->line_search_res>0) {
                 printf("improvement: ");
-                printf("cost= %12.6g; ", l->cost);
+                printf("cost= %12.6g, constrs= %8.3g; ", l->cost, l->maxConstraint);
                 printLineSearchInfo(l);
             } else {
                 printf("no improvement: ");
@@ -274,16 +274,19 @@ void printLogLine(int i, tLogLine *l) {
             printBackPassInfo(l);
             printf(")");
             break;
+        case -8:
+            printf("ERROR nan or inf in initial forward pass");
+            break;
         case 1:
             printf("grad < tol:  ");
-            printf("cost= %12.6g; ", l->cost);
+            printf("cost= %12.6g, constrs= %8.3g; ", l->cost, l->maxConstraint);
             printLineSearchInfo(l);
             printf("; ");
             printBackPassInfo(l);
             break;
         case 2:
             printf("dcost < tol: ");
-            printf("cost= %12.6g; ", l->cost);
+            printf("cost= %12.6g, constrs= %8.3g; ", l->cost, l->maxConstraint);
             printLineSearchInfo(l);
             printf("; ");
             printBackPassInfo(l);
@@ -319,6 +322,12 @@ int iLQG(tOptSet *o) {
     newDeriv= 1;
     
     update_multipliers(o, 1);
+    
+    if(!forward_pass(o->nominal, o, 0.0, &o->cost, 0)) {
+        o->iterations= 1;
+        if(o->log_line) o->log_line->res= -8;
+        return 0;
+    }
     
     for(iter= 0; iter < o->max_iter; iter++) {
         if(o->log) o->log_line= o->log+iter;
@@ -368,7 +377,9 @@ int iLQG(tOptSet *o) {
     
         // ====== STEP 3: line-search to find new control sequence, trajectory, cost
         fwdPass= line_search(o);
+        calc_constraint_violation(o);
         if(o->log_line) o->log_line->line_search_res= fwdPass;
+        if(o->log_line) o->log_line->maxConstraint= o->maxConstraint;
 
         if(fwdPass==-2) {
             res= -3;

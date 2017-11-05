@@ -470,6 +470,56 @@ int init_opt(tOptSet *o) {
     return 1;
 }
 
+void calc_constraint_violation(tOptSet *o) {
+    o->maxConstraint= 0.0;
+    calc_constraint_violation_running(o);
+    calc_constraint_violation_final(o);
+}
+    
+void calc_constraint_violation_running(tOptSet *o) {
+    int k;
+    double __attribute__((unused)) infeasability_noncomplementarity;
+    multipliersEl_t __attribute__((unused)) *m;
+    trajEl_t *t;
+    const double __attribute__((unused)) inv_w_pen= 1.0/o->w_pen_l;;
+    
+    t= o->nominal->t;
+    m= o->multipliers.t;
+    
+    for(k= 0; k<o->n_hor; k++, m++, t++) {
+<<print_aux_decl_assign([used_by_running], []);>>
+
+<<block([i], for i: 1 thru n_hle do (
+    gentran(literal("        o->maxConstraint= max(o->maxConstraint, fabs(", eval(do_replacements(concat('hle_, i))), "))\;", cr))
+))>>
+
+        // according to ON AUGMENTED LAGRANGIAN METHODS WITH GENERAL LOWER-LEVEL CONSTRAINTS, https://doi.org/10.1137/060654797
+<<block([i], for i: 1 thru n_hli do (
+    gentran(literal("        infeasability_noncomplementarity= max(", eval(do_replacements(concat('hli_, i))), ", -1.0*", eval(concat('mu_li_, i)), "*inv_w_pen)\;", cr)),
+    gentran(literal("        o->maxConstraint= max(o->maxConstraint, fabs (infeasability_noncomplementarity))\;", cr))
+))>>
+    }
+}
+
+void calc_constraint_violation_final(tOptSet *o) {
+    trajFin_t *t= &o->nominal->f;
+    multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
+    double inv_w_pen= 1.0/o->w_pen_f;
+    double __attribute__((unused)) infeasability_noncomplementarity;
+
+<<print_aux_decl_assign([used_by_final], []);>>
+    
+<<block([i], for i: 1 thru n_hfe do (
+    gentran(literal("    o->maxConstraint= max(o->maxConstraint, fabs(", eval(do_replacements(concat('hfe_, i))), "))\;", cr))
+))>>
+
+        // according to ON AUGMENTED LAGRANGIAN METHODS WITH GENERAL LOWER-LEVEL CONSTRAINTS, https://doi.org/10.1137/060654797
+<<block([i], for i: 1 thru n_hfi do (
+    gentran(literal("    infeasability_noncomplementarity= max(", eval(do_replacements(concat('hfi_, i))), ", -1.0*", eval(concat('mu_fi_, i)), "*inv_w_pen)\;", cr)),
+    gentran(literal("    o->maxConstraint= max(o->maxConstraint, fabs (infeasability_noncomplementarity))\;", cr))
+))>>
+}
+
 static int update_multipliers_running(tOptSet *o, int init) {
     trajEl_t *t= o->nominal->t;
     multipliersEl_t *m= o->multipliers.t;

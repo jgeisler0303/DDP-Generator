@@ -29,7 +29,7 @@ void standard_parameters(tOptSet *o) {
     for(int i= 0; i<o->n_alpha; i++)
         o->alpha[i]= default_alpha[i];
     o->tolFun= 1e-7;
-    o->tolConstraint= 1e-7;
+    o->tolConstraint= 1e-5;
     o->tolGrad= 1e-5;
     o->max_iter= 20;
     o->lambdaInit= 1;
@@ -47,8 +47,10 @@ void standard_parameters(tOptSet *o) {
     o->log= NULL;
     o->log_line= NULL;
     o->iterations= 0;
-    o->contractGradMin= 0.1;
-    o->contractConstrMin= 1;
+    o->contractGradInit= 0.0;   // auto init
+    o->contractConstrInit= 0.0; // auto init
+    o->contractGradFactor= 0.7;
+    o->contractConstrFactor= 0.5; // suggested by "ON AUGMENTED LAGRANGIAN METHODS WITH GENERAL LOWER-LEVEL CONSTRAINTS", https://doi.org/10.1137/060654797
     o->lambdaFactorUpdateP= 1.0;
     o->lambdaFactorUpdateM= 1.0;
 }
@@ -176,18 +178,6 @@ const char *setOptParam(tOptSet *o, const char *name, const double *value, const
         if(value[0]<0.0)
             return setOptParamErr_not_pos;
         o->h_fd= value[0];
-    }  else if(strcmp(name, "contractGradMin")==0) {
-        if(n!=1)
-            return setOptParamErr_not_scalar;
-        if(value[0]<0.0 || value[0]>=1.0)
-            return setOptParamErr_range_zero_one;
-        o->contractGradMin= value[0];
-    }  else if(strcmp(name, "contractConstrMin")==0) {
-        if(n!=1)
-            return setOptParamErr_not_scalar;
-        if(value[0]<0.0 || value[0]>=1.0)
-            return setOptParamErr_range_zero_one;
-        o->contractConstrMin= value[0];
     }  else if(strcmp(name, "lambdaFactorUpdateP")==0) {
         if(n!=1)
             return setOptParamErr_not_scalar;
@@ -200,6 +190,30 @@ const char *setOptParam(tOptSet *o, const char *name, const double *value, const
         if(value[0]<1.0)
             return setOptParamErr_lt_one;
         o->lambdaFactorUpdateM= value[0];
+    } else if(strcmp(name, "contractGradFactor")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0 || value[0]>=1.0)
+            return setOptParamErr_range_zero_one;
+        o->contractGradFactor= value[0];
+    } else if(strcmp(name, "contractConstrFactor")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0 || value[0]>=1.0)
+            return setOptParamErr_range_zero_one;
+        o->contractConstrFactor= value[0];
+    } else if(strcmp(name, "contractGradInit")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->contractGradInit= value[0];
+    } else if(strcmp(name, "contractConstrInit")==0) {
+        if(n!=1)
+            return setOptParamErr_not_scalar;
+        if(value[0]<0.0)
+            return setOptParamErr_not_pos;
+        o->contractConstrInit= value[0];
     } else {
         return setOptParamErr_no_such_parameter;
     }
@@ -235,7 +249,7 @@ void printBackPassInfo(tLogLine *l) {
 }
 
 void printLineSearchInfo(tLogLine *l) {
-    printf("searches= %2d, z= %6.3f", l->n_line_searches, l->z);    
+    printf("searches= %2d, z= %9.3g", l->n_line_searches, l->z);    
 }
 
 void printLogLine(int i, tLogLine *l) {
@@ -250,18 +264,18 @@ void printLogLine(int i, tLogLine *l) {
                         printLineSearchInfo(l);
                     } else {
                         printf("no improvement: ");
-                        printf("z= %6.3f", l->z);
+                        printf("cost= %6.3f, constrs= %8.3g; z= %8.3g/%-8.3g = %9.3g", l->cost, l->maxConstraint, l->dcost, l->expected_red, l->z);
                     }
                     printf("; ");
                     printBackPassInfo(l);
                     break;
                 case 1:
                     printf("pen. update: ");
-                    printf("cost= %6.3f, constrs= %8.3g, next grad= %8.3g, next constrs= %8.3g, g_norm= %8.3g, w_pen= %5.0f/%5.0f", l->cost, l->maxConstraint, l->contractGrad, l->contractConstr, l->g_norm, l->w_pen_l, l->w_pen_f);
+                    printf("cost= %6.3f, constrs= %8.3g, next grad= %8.3g, next constrs= %8.3g, g_norm= %8.3g, w_pen= %5.3g/%5.3g", l->cost, l->maxConstraint, l->contractGrad, l->contractConstr, l->g_norm, l->w_pen_l, l->w_pen_f);
                     break;
                 case 2:
                     printf("mult.update: ");
-                    printf("cost= %6.3f, constrs= %8.3g, next grad= %8.3g, next constrs= %8.3g, g_norm= %8.3g, w_pen= %5.0f/%5.0f", l->cost, l->maxConstraint, l->contractGrad, l->contractConstr, l->g_norm, l->w_pen_l, l->w_pen_f);
+                    printf("cost= %6.3f, constrs= %8.3g, next grad= %8.3g, next constrs= %8.3g, g_norm= %8.3g, w_pen= %5.3g/%5.3g", l->cost, l->maxConstraint, l->contractGrad, l->contractConstr, l->g_norm, l->w_pen_l, l->w_pen_f);
                     break;
             }
             break;
@@ -279,7 +293,7 @@ void printLogLine(int i, tLogLine *l) {
         case -4:
             printf("ERROR max lambda reached after line search (");
             printBackPassInfo(l);
-            printf("; z= %6.3f)", l->z);
+            printf("; z= %9.3g)", l->z);
             break;
         case -5:
             printf("ERROR max iterations reached cost= %6.3f, constrs= %6.3f (", l->cost, l->maxConstraint);
@@ -294,9 +308,12 @@ void printLogLine(int i, tLogLine *l) {
             printf(")");
             break;
         case -7:
-            printf("ERROR nan or inf in forward after multiplier update (");
+            printf("ERROR nan or inf in forward pass after multiplier update (");
             printBackPassInfo(l);
             printf(")");
+            break;
+        case -8:
+            printf("ERROR nan or inf in initial forward pass");
             break;
         case 1:
             printf("grad < tol:  ");
@@ -340,10 +357,15 @@ int iterate(tOptSet *o) {
     o->w_pen_f= o->w_pen_init_f;
     // default init: never update multipliers
     o->contractGrad= 0.0;
-    o->contractGradInit= 0.0;
     o->contractConstr= 0.0;
-    o->contractConstrInit= 0.0;
     newDeriv= 1;
+    
+    if(!forward_pass(o->candidates[0], o, 0.0, o->cost, 0)) {
+        o->iterations= 1;
+        if(o->log_line) o->log_line->res= -8;
+        return 0;
+    } else
+        makeCandidateNominal(o, 0);
     
     for(iter= 0; iter < o->max_iter; iter++) {
         if(o->log) o->log_line= o->log+iter;
@@ -393,52 +415,18 @@ int iterate(tOptSet *o) {
         }
         
         if(iter==0) {
-            o->contractGradInit= o->g_norm * min(1.0/o->w_pen_l, o->contractGradMin);
-            o->contractGrad= o->contractGradInit;
-            o->contractConstrInit= o->maxConstraint * pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.1);
-            o->contractConstr= o->contractConstrInit;
+            // o->contractGradInit= o->g_norm * min(1.0/o->w_pen_l, o->contractGradMin);
+            if(o->contractGradInit==0.0)
+                o->contractGrad= max(o->g_norm * o->contractGradFactor, o->tolGrad);
+            else
+                o->contractGrad= min(o->contractGradInit, o->g_norm);
+            
+            // o->contractConstrInit= o->maxConstraint * pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.1);
+            if(o->contractConstrInit==0.0)
+                o->contractConstr= o->maxConstraint * o->contractConstrFactor;
+            else
+                o->contractConstr= min(o->maxConstraint, o->contractConstrInit);
         }
-        // check for sufficient convergence to update multipliers or weights
-        if(o->g_norm < o->contractGrad) {
-            bool pen_update= false;
-            if(o->maxConstraint > o->contractConstr && (o->w_pen_l < o->w_pen_max_l || o->w_pen_f < o->w_pen_max_f)) {
-                o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact);
-                o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact);
-                // according to Trust Region Augmented Lagrangian Methods for Sequential Response Surface Approximation and Optimization, doi:10.1115/1.2826677
-                o->contractConstr= o->contractConstrInit * pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.1);
-                o->contractGrad= max(o->contractGradInit * min(1.0/o->w_pen_l, o->contractGradMin), o->tolGrad);
-                o->lambda= min(o->lambda * o->lambdaFactorUpdateP, o->lambdaInit);
-                
-                if(o->log_line) o->log_line->multiplier_action= 1;
-                if(o->log_line) o->log_line->w_pen_l= o->w_pen_l;
-                if(o->log_line) o->log_line->w_pen_f= o->w_pen_f;
-                pen_update= true;
-            }
-            if(!pen_update || o->maxConstraint <= o->contractConstr) {
-                if(!update_multipliers(o)) {
-                    res= -6;
-                    break;
-                }
-                o->contractConstr*= pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.9);
-                o->contractGrad= max(o->contractGrad*min(1.0/o->w_pen_l, o->contractGradMin), o->tolGrad);
-                o->lambda= min(o->lambda * o->lambdaFactorUpdateM, o->lambdaInit);
-                
-                if(o->log_line) o->log_line->multiplier_action= 2;
-            }
-            
-            if(!forward_pass(o->nominal, o, 0.0, o->cost, 1)) {
-                res= -7;
-                break;
-            }
-            if(o->log_line) o->log_line->cost= o->cost;
-            if(o->log_line) o->log_line->contractGrad= o->contractGrad;
-            if(o->log_line) o->log_line->contractConstr= o->contractConstr;
-            
-            newDeriv= 1;
-            continue;
-        } else
-            if(o->log_line) o->log_line->multiplier_action= 0;
-
         
         // ====== STEP 3: line-search to find new control sequence, trajectory, cost
         fwdPass= line_search(o);
@@ -451,24 +439,75 @@ int iterate(tOptSet *o) {
         
         // ====== STEP 4: accept (or not), draw graphics
         if(fwdPass>0) {
-            // decrease lambda
-            // maybe make these thresholds parameters
-            if(o->n_ls==1 && o->last_z > 0.75 && o->last_z < 1.5) {
-                o->lambda= o->lambda / o->lambdaFactor;
-                if(o->lambda < o->lambdaMin) o->lambda= 0.0;
-            }
-            
             // accept changes
             makeCandidateNominal(o, 0);
-
-            o->cost= o->new_cost;
-            newDeriv= 1;
             
             // TODO: can this be an alternative criterium to the gradient?
             // if(o->dcost < o->tolFun) {
             //     res= 2;
             //    break;
             // }
+            
+            // check for sufficient convergence to update multipliers or weights
+#ifdef HAS_AUGMENTED_LAGRANGIAN
+            if(o->g_norm < o->contractGrad) {
+                if(!update_multipliers(o)) {
+                    res= -6;
+                    break;
+                }
+                // o->contractConstr*= pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.9);
+                // o->contractGrad= max(o->contractGrad*min(1.0/o->w_pen_l, o->contractGradMin), o->tolGrad);
+                o->lambda= min(o->lambda * o->lambdaFactorUpdateM, o->lambdaInit);
+                
+                if(o->log_line) o->log_line->multiplier_action= 2;
+                
+                if(o->maxConstraint > o->contractConstr) {
+                    bool penaltyUpdated= false;
+                    if(o->w_pen_l < o->w_pen_max_l) {
+                        o->w_pen_l= min(o->w_pen_max_l, o->w_pen_l*o->w_pen_fact);
+                        penaltyUpdated= true;
+                    }
+                    if(o->w_pen_f < o->w_pen_max_f) {
+                        o->w_pen_f= min(o->w_pen_max_f, o->w_pen_f*o->w_pen_fact);
+                        penaltyUpdated= true;
+                    }
+                    if(penaltyUpdated) {
+                        // according to Trust Region Augmented Lagrangian Methods for Sequential Response Surface Approximation and Optimization, doi:10.1115/1.2826677
+                        // o->contractConstr= o->contractConstrInit * pow(min(1.0/o->w_pen_l, o->contractConstrMin), 0.1);
+                        // o->contractGrad= max(o->contractGradInit * min(1.0/o->w_pen_l, o->contractGradMin), o->tolGrad);
+                        o->lambda= min(o->lambda * o->lambdaFactorUpdateP, o->lambdaInit);
+                        if(o->log_line) o->log_line->multiplier_action= 1;
+                        if(o->log_line) o->log_line->w_pen_l= o->w_pen_l;
+                        if(o->log_line) o->log_line->w_pen_f= o->w_pen_f;
+                    }
+                }
+                
+                if(!forward_pass(o->nominal, o, 0.0, o->cost, 1)) {
+                    res= -7;
+                    break;
+                }
+                o->contractGrad= max(o->contractGrad * o->contractGradFactor, o->tolGrad);
+                o->contractConstr= max(o->maxConstraint * o->contractConstrFactor, o->tolConstraint);
+                
+                if(o->log_line) o->log_line->cost= o->cost;
+                if(o->log_line) o->log_line->contractGrad= o->contractGrad;
+                if(o->log_line) o->log_line->contractConstr= o->contractConstr;
+            } else 
+#endif
+            {
+                o->cost= o->new_cost;
+                if(o->log_line) o->log_line->multiplier_action= 0;
+            }
+                
+            // decrease lambda
+            // maybe make these thresholds parameters
+            if(o->n_ls==1 && o->last_z > 0.75 && o->last_z < 1.5) {
+                o->lambda= o->lambda / o->lambdaFactor;
+                if(o->lambda < o->lambdaMin) o->lambda= 0.0;
+            }
+                
+
+            newDeriv= 1;
         } else { // no cost improvement
             // increase lambda
             o->lambda= max(o->lambda * o->lambdaFactor, o->lambdaMin);

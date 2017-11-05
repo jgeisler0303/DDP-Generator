@@ -76,10 +76,10 @@ typedef struct optSet {
     double maxConstraint;
     double contractGrad;
     double contractConstr;
-    double contractGradMin;
-    double contractConstrMin;
     double contractGradInit;
     double contractConstrInit;
+    double contractGradFactor;
+    double contractConstrFactor;
     
     int max_iter;
     double tolGrad;

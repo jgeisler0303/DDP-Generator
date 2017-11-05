@@ -90,7 +90,7 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     double __attribute__((unused)) limit;
     
 <<print_aux_decl_assign([used_by_running], [], 4)>>
-<<print_deriv_decl_assign([used_by_running], [])>>
+<<print_deriv_decl_assign([used_by_running], [], 4)>>
 
     t->lower= VectorU::Constant(-INF);
     t->upper= VectorU::Constant(INF);
@@ -228,7 +228,7 @@ static int calcXVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const 
 
 <<print_aux([time_var, used_by_running], [denpends_on_u]);>>
 
-<<print_aux_assign([time_var, used_by_running], [denpends_on_u]);>>
+<<print_aux_assign([time_var, used_by_running], [denpends_on_u], 4);>>
 
     return 1;
 } 
@@ -243,7 +243,7 @@ static int calcXUVariableAux(trajEl_t *t, const multipliersEl_t *m, int k, const
 
 <<print_aux([denpends_on_u, used_by_running], []);>>
 
-<<print_aux_assign([denpends_on_u, used_by_running], []);>>
+<<print_aux_assign([denpends_on_u, used_by_running], [], 4);>>
 
     return 1;
 } 
@@ -256,7 +256,7 @@ static int calcFVariableAux(trajFin_t *t, const multipliersFin_t *m, const tOptS
     
 <<print_aux([time_var, used_by_final], []);>>
 
-<<print_aux_assign([time_var, used_by_final], []);>>
+<<print_aux_assign([time_var, used_by_final], [], 4);>>
 
     return 1;
 } 
@@ -268,11 +268,11 @@ static int calcLAuxDeriv(trajEl_t *t, const multipliersEl_t *m, int k, const tOp
     double __attribute__((unused)) **p= o->p;
     
 <<print_aux_decl_assign([used_by_running], [], 4);>>
-<<print_deriv_decl_assign([used_by_running], [time_var]);>>
+<<print_deriv_decl_assign([used_by_running], [time_var], 4);>>
 
 <<print_deriv([time_var, used_by_running], []);>>
 
-<<print_deriv_assign([time_var, used_by_running], []);>>
+<<print_deriv_assign([time_var, used_by_running], [], 4);>>
 
     return 1;
 }
@@ -282,7 +282,7 @@ static int bp_derivsL(trajEl_t *t, int k, double **p) {
     const double __attribute__((unused)) *u= t->u.data();
     
 <<print_aux_decl_assign([used_by_running], [], 4);>>
-<<print_deriv_decl_assign([used_by_running], []);>>
+<<print_deriv_decl_assign([used_by_running], [], 4);>>
     
 // derivatives of f
 <<print_jaco('t\-\>fx, fx, true);>>
@@ -318,11 +318,11 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
     const int __attribute__((unused)) k= o->n_hor;
     
 <<print_aux_decl_assign([used_by_final], [], 4);>>
-<<print_deriv_decl_assign([used_by_final], [time_var]);>>
+<<print_deriv_decl_assign([used_by_final], [time_var], 4);>>
 
 <<print_deriv([time_var, used_by_final], []);>>
 
-<<print_deriv_assign([time_var, used_by_final], []);>>
+<<print_deriv_assign([time_var, used_by_final], [], 4);>>
 
     return 1;
 }
@@ -330,7 +330,7 @@ static int calcFAuxDeriv(trajFin_t *t, const multipliersFin_t *m, const tOptSet 
 static int bp_derivsF(trajFin_t *t, int k, double **p) {
     const double __attribute__((unused)) *x= t->x.data();
 <<print_aux_decl_assign([used_by_final], [], 4);>>
-<<print_deriv_decl_assign([used_by_final], []);>>
+<<print_deriv_decl_assign([used_by_final], [], 4);>>
 
     
 <<print_grad('t\-\>cx, Fx, true);>>
@@ -345,10 +345,10 @@ static int init_running(trajEl_t *t, const tOptSet *o) {
     
     for(int k= 0; k<o->n_hor; k++, t++) {
 <<print_aux([used_by_running], [time_var]);>>
-<<print_aux_assign([used_by_running], [time_var]);>>
+<<print_aux_assign([used_by_running], [time_var], 4);>>
 
 <<print_deriv([used_by_running], [time_var]);>>
-<<print_deriv_assign([used_by_running], [time_var]);>>
+<<print_deriv_assign([used_by_running], [time_var], 4);>>
 
 
 // derivatives of L
@@ -384,10 +384,10 @@ static int init_final(trajFin_t *t, const tOptSet *o) {
     const int __attribute__((unused)) k= o->n_hor;
 
 <<print_aux([used_by_final], [time_var]);>>
-<<print_aux_assign([used_by_final], [time_var]);>>
+<<print_aux_assign([used_by_final], [time_var], 4);>>
 
 <<print_deriv([used_by_final], [time_var]);>>
-<<print_deriv_assign([used_by_final], [time_var]);>>
+<<print_deriv_assign([used_by_final], [time_var], 4);>>
 
 <<print_grad('t\-\>cx, Fx, false);>>
 
@@ -468,7 +468,7 @@ void calc_constraint_violation(tOptSet *o) {
     }
     }
     {
-    trajFin_t *t= &o->nominal->f;
+    trajFin_t __attribute__((unused)) *t= &o->nominal->f;
     multipliersFin_t __attribute__((unused)) *m= &o->multipliers.f;
     const double __attribute__((unused)) inv_w_pen= 1.0/o->w_pen_f;
     double __attribute__((unused)) infeasability_noncomplementarity;

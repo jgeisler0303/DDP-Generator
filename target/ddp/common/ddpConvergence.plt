@@ -20,10 +20,11 @@ set key bottom left
 #set autoscale  y
 #set autoscale y2
 plot datafile using 1 title "cost" with line axes x1y1, \
-    datafile using 2 title "lambda" with line axes x1y2, \
-    datafile using 3 title "alpha" with line axes x1y2, \
-    datafile using 4 title "gradient" with line axes x1y2, \
-    datafile using 5 title "improvement" with line axes x1y2
+    datafile using 2 title "feasability" with line axes x1y1, \
+    datafile using 3 title "lambda" with line axes x1y2, \
+    datafile using 4 title "alpha" with line axes x1y2, \
+    datafile using 5 title "gradient" with line axes x1y2, \
+    datafile using 6 title "improvement" with line axes x1y2
     
 
 reset

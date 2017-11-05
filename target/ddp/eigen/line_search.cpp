@@ -5,7 +5,7 @@
  
 // return number of line searches if successfull, -1 if max number of line searches reached, -2 if inf or nan encountered
 int line_search(tOptSet *o) {
-    double expected, z, alpha, dcost= 0.0, cnew= 0.0;
+    double expected= 0.0, z= 0.0, alpha= 0.0, dcost= 0.0, cnew= 0.0;
     int i, ret= -1;
     
     for(i= 0; i < o->n_alpha; i++) {
@@ -33,7 +33,7 @@ int line_search(tOptSet *o) {
         }
     }
     
-    if(ret==1 && o->log_line) {
+    if(ret>-2 && o->log_line) {
         o->log_line->alpha= alpha;
         o->log_line->z= z;
         o->log_line->cost= cnew;

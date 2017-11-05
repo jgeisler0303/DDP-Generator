@@ -46,6 +46,7 @@ typedef struct logLine {
     double dcost;
     double expected_red;
     int line_search_res;
+    double maxConstraint;
     int res;
 } tLogLine;
 
@@ -78,6 +79,7 @@ typedef struct optSet {
     double w_pen_init_f;
     double w_pen_fact1;
     double w_pen_fact2;
+    double maxConstraint;
     
     double h_fd;
     
@@ -102,6 +104,7 @@ const char *setOptParam(tOptSet *o, const char *name, const double *value, const
 int forward_pass(traj_t *c, const tOptSet *o, double alpha, double *csum, int cost_only);
 void makeCandidateNominal(tOptSet *o, int idx);
 int calc_derivs(const tOptSet *o);
+void calc_constraint_violation(tOptSet *o);
 int init_opt(tOptSet *o);
 int update_multipliers(tOptSet *o, int init);
 int get_g_size();

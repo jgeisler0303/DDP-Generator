@@ -10,6 +10,11 @@
 
 #define N_X <<gentran(eval(nx))$>> 
 #define N_U <<gentran(eval(nu))$>> 
+#define N_HLE <<gentran(eval(n_hle))$>> 
+#define N_HLI <<gentran(eval(n_hli))$>> 
+#define N_HFE <<gentran(eval(n_hfe))$>> 
+#define N_HFI <<gentran(eval(n_hfi))$>> 
+<<if (n_hle+n_hli+n_hfe+n_hfi)#0 then gentran(literal("#define HAS_AUGMENTED_LAGRANGIAN", cr))>>
 
 typedef Eigen::Matrix<double, N_X, N_X> MatrixXX;
 typedef Eigen::Matrix<double, N_U, N_U> MatrixUU;

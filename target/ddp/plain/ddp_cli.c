@@ -333,26 +333,17 @@ int main(int argc, char* argv[]) {
                 o.nominal->t[k].u[i]= u_nom[i][k];
         }
         
-        double cost;
-        if(!forward_pass(o.candidates[0], &o, 0.0, &cost, 0)) {
-            printf("Error in initial forward pass\n");
-            ret= 1;
-        } else {
-            o.cost= cost;
-            makeCandidateNominal(&o, 0);
-            
-            printf("Starting DDP\n");
+        printf("Starting DDP\n");
 
-            begin = clock();
-            iLQG(&o);
-            end = clock();
+        begin = clock();
+        ret= iLQG(&o)!=1;
+        end = clock();
 
-            printLog(&o);
-            printf("Time for DDP: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
-            
-            writeResult(&o, res_file);
-            writeIter(&o, iter_file);
-        }
+        printLog(&o);
+        printf("Time for DDP: %f seconds\n", (double)(end - begin) / CLOCKS_PER_SEC);
+        
+        writeResult(&o, res_file);
+        writeIter(&o, iter_file);
     }
     
 
