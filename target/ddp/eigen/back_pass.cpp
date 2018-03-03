@@ -93,7 +93,7 @@ int back_pass(tOptSet *o) {
             for(int i= 0, i_free= 0; i<N_U; i++)
                 if(!is_clamped(i)) {
                     Qux_free.row(i_free)= Qxu_reg.transpose().row(i);
-#if CONSTRAINT_UX
+#ifdef CONSTRAINT_UX
                     for(int j= 0; j<N_U; j++) {
                         if(is_clamped(j)) {
                             double QuuFij;
@@ -119,7 +119,7 @@ int back_pass(tOptSet *o) {
                 t->L.row(i)= L_free.row(i_free);
                 i_free++;
             } 
-#if CONSTRAINT_UX
+#ifdef CONSTRAINT_UX
             else if(is_clamped(i)==1) {
                 t->L.row(i)= -1.0*t->lower_sign(i) * t->lower_hx.col(i);
             } else {

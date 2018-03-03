@@ -28,7 +28,7 @@ OBJ_DIR:= $(GEN_DIR)/obj
 MKDIR_P:= mkdir -p
 CPP:= g++
 INCLUDES:= -I$(DDP_BASE_DIR) -I$(GEN_DIR) -I$(DDP_BASE_DIR)/../../../util/inih -I$(DDP_BASE_DIR)/../../../util
-CPPFLAGS:= $(USER_FLAGS) -Wall -std=c++0x 
+CPPFLAGS:= -Wall -Wno-unknown-pragmas -std=c++0x $(USER_FLAGS) 
 LIBS= -lm
 
 TARGET_OBJS:= back_pass.o boxQP.o iterate.o line_search.o printMat.o ddp_cli.o
@@ -53,7 +53,7 @@ $(CPP) -MMD -MT $@ -MP -c $(CPPFLAGS) $(INCLUDES) $< -o $@
 endef
 
 $(PROGRAM) : $(OBJS)
-	$(CPP) $(OBJS) -o $(PROGRAM) $(LIBS)
+	$(CPP) $(CPPFLAGS) $(OBJS) -o $(PROGRAM) $(LIBS)
 
 $(GEN_DIR)/obj/%.o : $(GEN_DIR)/%.cpp $(GEN_DIR)/ddp_problem.h
 	$(COMPILE_CMD)

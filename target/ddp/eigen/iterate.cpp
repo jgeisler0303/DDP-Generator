@@ -3,6 +3,7 @@
 #include <cmath>
 #include <stdlib.h>
 #include <algorithm>
+#include <fenv.h>
 
 #include "ddp.h"
 #include "line_search.h"
@@ -258,7 +259,7 @@ void printLogLine(int i, tLogLine *l) {
         case 0:
             switch(l->multiplier_action) {
                 case 0:
-                    if(l->line_search_res>0) {
+                    if(l->line_search_res>=0) {
                         printf("improvement: ");
                         printf("cost= %6.3f, constrs= %8.3g; ", l->cost, l->maxConstraint);
                         printLineSearchInfo(l);
@@ -352,6 +353,9 @@ int iterate(tOptSet *o) {
     int newDeriv;
     int res= 0;
     
+//     fenv_t curr_excepts;
+//     feholdexcept(&curr_excepts);
+    
     o->lambda= o->lambdaInit;
     o->w_pen_l= o->w_pen_init_l;
     o->w_pen_f= o->w_pen_init_f;
@@ -438,9 +442,9 @@ int iterate(tOptSet *o) {
         }
         
         // ====== STEP 4: accept (or not), draw graphics
-        if(fwdPass>0) {
+        if(fwdPass>=0) {
             // accept changes
-            makeCandidateNominal(o, 0);
+            makeCandidateNominal(o, fwdPass);
             
             // TODO: can this be an alternative criterium to the gradient?
             // if(o->dcost < o->tolFun) {

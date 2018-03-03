@@ -1,6 +1,13 @@
 #ifndef DDP_H
 #define DDP_H
 
+#include <limits>
+
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #ifndef PRNT
 #define PRNT printf
 #endif
@@ -9,16 +16,14 @@
     #define FULL_DDP 1
 #endif
 
-#ifndef CONSTRAINT_UX
-    #define CONSTRAINT_UX 1
-#endif
-
 #include "ddp_problem.h"
 
-#define INIT_OPTSET {0}
-
-#ifndef NUMBER_OF_THREADS
-#define NUMBER_OF_THREADS 1
+#ifdef _OPENMP
+    #ifndef NUMBER_OF_THREADS
+        #define NUMBER_OF_THREADS 4
+    #endif
+#else
+    #define NUMBER_OF_THREADS 1
 #endif
 
 #define INF (std::numeric_limits<double>::infinity())

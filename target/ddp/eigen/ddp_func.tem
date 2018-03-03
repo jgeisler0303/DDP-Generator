@@ -2,6 +2,10 @@
 #include "ddp.h"
 #include <algorithm>
 
+#ifndef PARALLEL_DERIVATIVES
+    #define PARALLEL_DERIVATIVES 0
+#endif
+
 using namespace Eigen;
 using namespace std;
 
@@ -125,15 +129,15 @@ static void limitsU(trajEl_t *t, int k, double **p, int N) {
     }
 }
 
-int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int cost_only) {
+int forward_pass(traj_t* c, const tOptSet* o, double alpha, double& csum, int cost_only) {
     int N= o->n_hor;
     double __attribute__((unused)) **params= o->p;
     
-    trajEl_t *t= o->nominal->t;
+    const trajEl_t *t= o->nominal->t;
     trajEl_t *ct= c->t;
     trajFin_t *cf= &c->f;
     
-    multipliersEl_t *m= o->multipliers.t;
+    const multipliersEl_t *m= o->multipliers.t;
     const multipliersFin_t *mf= &o->multipliers.f;
     
     csum= 0.0;
@@ -190,30 +194,37 @@ int forward_pass(traj_t *c, const tOptSet *o, double alpha, double &csum, int co
 }
 
 int calc_derivs(const tOptSet *o) {
-    int N= o->n_hor;
-
-    trajEl_t *t= o->nominal->t + N -1;
     trajFin_t *f= &o->nominal->f;
-    
-    multipliersEl_t *m= o->multipliers.t + N - 1;
     const multipliersFin_t *mf= &o->multipliers.f;
 
-    if(!calcFAuxDeriv(f, mf, o) ||!bp_derivsF(f, N, o->p)) {
-        if(o->log_line) o->log_line->derivs_fail= N+1;
+    if(!calcFAuxDeriv(f, mf, o) ||!bp_derivsF(f, o->n_hor, o->p)) {
+        if(o->log_line) o->log_line->derivs_fail= o->n_hor+1;
     
         return 0;
     }
     
-    int k;
-    for(k= N-1; k>=0; k--, t--, m--) {
-        if(!calcLAuxDeriv(t, m, k, o)) break;
-        if(!bp_derivsL(t, k, o->p)) break;
-        
-        limitsU(t, k, o->p, N);
-
+    int fail_k= -1;
+    bool abort= false;
+    #pragma omp parallel default(none) firstprivate(o, abort) shared(fail_k) if(PARALLEL_DERIVATIVES) num_threads(NUMBER_OF_THREADS)
+    {
+        #pragma omp for schedule(static)
+        for(int k= o->n_hor-1; k>=0; k--) {
+            if(!abort) {
+                trajEl_t *t= o->nominal->t + k;
+                multipliersEl_t *m= o->multipliers.t + k;
+                
+                if(!calcLAuxDeriv(t, m, k, o) || !bp_derivsL(t, k, o->p)) {
+                    abort= true;
+                    fail_k= k;
+                }
+                
+                limitsU(t, k, o->p, o->n_hor);
+            }
+        }
     }
-    if(k>=0) {
-        if(o->log_line) o->log_line->derivs_fail= k+1;
+    
+    if(fail_k>=0) {
+        if(o->log_line) o->log_line->derivs_fail= fail_k+1;
         return 0;
     } else {
         if(o->log_line) o->log_line->derivs_fail= 0;
