@@ -366,10 +366,14 @@ int iterate(tOptSet *o) {
     
     if(!forward_pass(o->candidates[0], o, 0.0, o->cost, 0)) {
         o->iterations= 1;
-        if(o->log_line) o->log_line->res= -8;
+        if(o->log_line) {
+            o->log_line->res= -8;
+        }
         return 0;
-    } else
+    } else {
         makeCandidateNominal(o, 0);
+        printf("Initialized, cost= %f\n", o->cost);
+    }
     
     for(iter= 0; iter < o->max_iter; iter++) {
         if(o->log) o->log_line= o->log+iter;

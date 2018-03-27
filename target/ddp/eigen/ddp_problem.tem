@@ -15,7 +15,7 @@
 #define N_HFE <<gentran(eval(n_hfe))$>> 
 #define N_HFI <<gentran(eval(n_hfi))$>> 
 <<if (n_hle+n_hli+n_hfe+n_hfi)#0 then gentran(literal("#define HAS_AUGMENTED_LAGRANGIAN"))>> 
-<<print_def("CONSTRAINT_UX", hx)>> 
+<<if member(hx, arrays) then print_def("CONSTRAINT_UX", hx)>> 
 
 
 typedef Eigen::Matrix<double, N_X, N_X> MatrixXX;

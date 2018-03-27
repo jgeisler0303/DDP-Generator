@@ -13,6 +13,7 @@ RESULT_FILE_:=  $(TEST_DIR)/result_%.dat
 RESULT_EPS:=  $(TEST_DIR)/result_$(PROBLEM_NAME).eps
 ITERATION_FILE:=  $(TEST_DIR)/iterations_$(PROBLEM_NAME).dat
 ITERATION_FILE_:=  $(TEST_DIR)/iterations_%.dat
+LOG_FILE:= $(TEST_DIR)/log_$(PROBLEM_NAME).txt
 ITERATION_EPS:=  $(TEST_DIR)/iterations_$(PROBLEM_NAME).eps
 
 USER_FLAGS_MK:= $(OPTDEF_NAME)_eigen.mk
@@ -96,7 +97,7 @@ $(TEST_DIR) :
 	$(MKDIR_P) $(TEST_DIR)
 
 $(RESULT_FILE_) $(ITERATION_FILE_) : $(PROGRAM) | $(TEST_DIR)
-	./$(PROGRAM) > /dev/null
+	./$(PROGRAM) > $(LOG_FILE) 
 	mv ddp_result.dat $(RESULT_FILE)
 	mv ddp_iter.dat $(ITERATION_FILE)
 
